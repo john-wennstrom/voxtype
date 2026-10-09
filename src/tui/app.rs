@@ -539,6 +539,14 @@ fn detect_missing_model() -> Option<MissingModel> {
         // OpenVINO models are stored as multi-file IR directories; skip the
         // generic probe here until the TUI grows engine-specific validation.
         config::TranscriptionEngine::OpenVino => return None,
+        config::TranscriptionEngine::Granite => (
+            "granite",
+            cfg.granite
+                .as_ref()
+                .map(|settings| settings.model.clone())
+                .unwrap_or_default(),
+            "voxtype setup --download",
+        ),
     };
 
     if model.is_empty() {

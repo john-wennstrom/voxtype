@@ -306,6 +306,33 @@ max_duration_secs = 120  # 2 minutes
 
 ## Transcription Issues
 
+### Native Granite (This Fork)
+
+- **Engine not compiled:** use the fork's `just build`, or enable `granite` /
+   `granite-cuda` with an appropriate native shared runtime. Upstream Whisper and
+   ONNX packages do not contain this fork's engine.
+- **Model not found:** set `VOXTYPE_GRANITE_MODEL` to the installed GGUF, or use
+   `setup --download --model granite-speech-5.0-470m-turboctc-Q8_0.gguf`.
+- **Shared library not found:** set `TRANSCRIBE_DIR` before building and use the
+   fork launcher. The native runtime and its companion GGML/CUDA libraries must
+   remain available; the development binary is not self-contained.
+- **Model-load segfault:** Whisper and Granite embed incompatible GGML versions.
+   The Linux Granite build hides static-archive exports so the shared Granite
+   runtime cannot call Whisper's GGML. A crash backtrace entering Whisper's GGML
+   from `libtranscribe.so` indicates this isolation is missing. Static dual-GGML
+   builds are not verified.
+- **Explicit CUDA fails:** `backend = "cuda"` deliberately does not fall back.
+   Check the driver/runtime and `granite-cuda` feature, or choose `cpu` explicitly.
+- **Recording does not stop / V repeats:** run the fork binary, keep GNOME's
+   Super+V `/usr/bin/true` reservation, and stop the old daemon first. Both key
+   release orders are covered by regression tests; live desktop testing is still
+   required.
+- **Audio exceeds the limit:** keep `audio.max_duration_secs` below 60. The
+   sample config uses 30 seconds. Streaming and translation are not implemented.
+
+See [Native Granite](USER_MANUAL.md#native-granite-fork) for the full development
+workflow.
+
 ### "Model not found"
 
 **Cause:** Whisper model not downloaded or wrong path.

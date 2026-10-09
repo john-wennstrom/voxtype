@@ -186,6 +186,7 @@ pub fn feature_compiled(feature: &str) -> bool {
         "omnilingual" => cfg!(feature = "omnilingual"),
         "cohere" => cfg!(feature = "cohere"),
         "openvino" => cfg!(feature = "openvino-whisper"),
+        "granite" => cfg!(feature = "granite"),
         _ => false,
     }
 }
@@ -663,6 +664,28 @@ pub const CONFIG_KEYS: &[KeySpec] = &[
         "Load the model when recording starts and unload at idle.",
     )
     .for_onnx_engine("cohere"),
+    spec(
+        "granite.model",
+        "granite",
+        "model",
+        KeyType::DynamicEnum { source: "models" },
+        "Engine",
+        "Model",
+        "Granite TurboCTC GGUF filename or path.",
+    )
+    .for_engine("granite")
+    .gated("granite"),
+    spec(
+        "granite.backend",
+        "granite",
+        "backend",
+        closed(&["auto", "cpu", "cuda"]),
+        "Engine",
+        "Backend",
+        "Native Granite backend; explicit CUDA requires granite-cuda.",
+    )
+    .for_engine("granite")
+    .gated("granite"),
     // openvino
     spec(
         "openvino.model",
@@ -1668,6 +1691,7 @@ pub fn resolve(key: &str, cfg: &Config) -> Option<Json> {
     let om = || cfg.omnilingual.clone().unwrap_or_default();
     let co = || cfg.cohere.clone().unwrap_or_default();
     let ov = || cfg.openvino.clone().unwrap_or_default();
+    let gr = || cfg.granite.clone().unwrap_or_default();
 
     let v = match key {
         "engine" => json!(cfg.engine.name()),
@@ -1750,6 +1774,9 @@ pub fn resolve(key: &str, cfg: &Config) -> Option<Json> {
             None => Json::Null,
         },
         "cohere.on_demand_loading" => json!(co().on_demand_loading),
+
+        "granite.model" => json!(gr().model),
+        "granite.backend" => json!(gr().backend),
 
         "openvino.model" => json!(ov().model),
         "openvino.device" => json!(ov().device),

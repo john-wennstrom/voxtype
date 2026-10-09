@@ -1,8 +1,8 @@
 use super::{
-    AudioConfig, CohereConfig, DolphinConfig, HotkeyConfig, MeetingConfig, MoonshineConfig,
-    OmnilingualConfig, OpenVinoConfig, OutputConfig, ParaformerConfig, ParakeetConfig, Profile,
-    SenseVoiceConfig, SonioxConfig, StatusConfig, StreamingConfig, TextConfig, TranscriptionEngine,
-    VadConfig, WhisperConfig,
+    AudioConfig, CohereConfig, DolphinConfig, GraniteConfig, HotkeyConfig, MeetingConfig,
+    MoonshineConfig, OmnilingualConfig, OpenVinoConfig, OutputConfig, ParaformerConfig,
+    ParakeetConfig, Profile, SenseVoiceConfig, SonioxConfig, StatusConfig, StreamingConfig,
+    TextConfig, TranscriptionEngine, VadConfig, WhisperConfig,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -28,6 +28,10 @@ pub struct Config {
     /// Parakeet requires: cargo build --features parakeet
     #[serde(default)]
     pub engine: TranscriptionEngine,
+
+    /// Granite configuration, used when engine = "granite".
+    #[serde(default)]
+    pub granite: Option<GraniteConfig>,
 
     /// Parakeet configuration (optional, only used when engine = "parakeet")
     #[serde(default)]
@@ -118,6 +122,7 @@ impl Default for Config {
             whisper: WhisperConfig::default(),
             output: OutputConfig::default(),
             engine: TranscriptionEngine::default(),
+            granite: None,
             parakeet: None,
             moonshine: None,
             sensevoice: None,
@@ -376,6 +381,7 @@ impl Config {
                 .unwrap_or(false),
             // Soniox is a cloud backend; nothing to load on demand.
             TranscriptionEngine::Soniox => false,
+            TranscriptionEngine::Granite => false,
         }
     }
 
@@ -396,6 +402,7 @@ impl Config {
                 // A constrained detection set is not one language.
                 super::language::LanguageConfig::Multiple(_) => return None,
             },
+            TranscriptionEngine::Granite => "en",
             TranscriptionEngine::Cohere => self.cohere.as_ref().map(|c| c.language.as_str())?,
             TranscriptionEngine::SenseVoice => {
                 self.sensevoice.as_ref().map(|s| s.language.as_str())?
@@ -460,6 +467,11 @@ impl Config {
                 .as_ref()
                 .map(|s| s.model.as_str())
                 .unwrap_or("soniox (not configured)"),
+            TranscriptionEngine::Granite => self
+                .granite
+                .as_ref()
+                .map(|settings| settings.model.as_str())
+                .unwrap_or("granite (not configured)"),
         }
     }
 

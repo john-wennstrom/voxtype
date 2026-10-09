@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 mod cohere;
 mod dolphin;
+mod granite;
 mod moonshine;
 mod omnilingual;
 mod openvino;
@@ -14,6 +15,7 @@ mod soniox;
 
 pub use cohere::CohereConfig;
 pub use dolphin::DolphinConfig;
+pub use granite::GraniteConfig;
 pub use moonshine::MoonshineConfig;
 pub use omnilingual::OmnilingualConfig;
 pub use openvino::OpenVinoConfig;
@@ -70,6 +72,8 @@ pub enum TranscriptionEngine {
     OpenVino,
     /// Use Soniox (cloud streaming WebSocket STT).
     Soniox,
+    /// Use Granite TurboCTC via transcribe.cpp.
+    Granite,
 }
 
 impl TranscriptionEngine {
@@ -137,6 +141,24 @@ mod tests {
             "src/cli/mod.rs::ENGINE_NAMES_CSV is out of sync with TranscriptionEngine. \
              Update the constant to match every variant's name() in declaration order."
         );
+    }
+
+    #[test]
+    fn test_parse_engine_granite() {
+        let config: Config = toml::from_str(
+            r#"
+            engine = "granite"
+
+            [granite]
+            model = "/tmp/granite.gguf"
+            backend = "cpu"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(config.engine, TranscriptionEngine::Granite);
+        let granite = config.granite.unwrap();
+        assert_eq!(granite.model, "/tmp/granite.gguf");
+        assert_eq!(granite.backend, "cpu");
     }
 
     #[test]

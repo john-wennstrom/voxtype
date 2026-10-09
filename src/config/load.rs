@@ -1,6 +1,7 @@
 use super::parse::parse_config_salvaging;
 use super::{
-    Config, LanguageConfig, OpenVinoConfig, OutputMode, SonioxConfig, TranscriptionEngine,
+    Config, GraniteConfig, LanguageConfig, OpenVinoConfig, OutputMode, SonioxConfig,
+    TranscriptionEngine,
 };
 use crate::error::VoxtypeError;
 use std::path::{Path, PathBuf};
@@ -78,14 +79,33 @@ pub fn load_config(path: Option<&Path>) -> Result<Config, VoxtypeError> {
     }
 
     // Whisper / engine
-    if let Ok(model) = std::env::var("VOXTYPE_MODEL") {
-        config.whisper.model = model;
-    }
     if let Ok(engine) = std::env::var("VOXTYPE_ENGINE") {
         match engine.parse::<TranscriptionEngine>() {
             Ok(e) => config.engine = e,
             Err(_) => tracing::warn!("Unknown VOXTYPE_ENGINE value: {}", engine),
         }
+    }
+    if let Ok(model) = std::env::var("VOXTYPE_MODEL") {
+        if config.engine == TranscriptionEngine::Granite {
+            config
+                .granite
+                .get_or_insert_with(GraniteConfig::default)
+                .model = model;
+        } else {
+            config.whisper.model = model;
+        }
+    }
+    if let Ok(model) = std::env::var("VOXTYPE_GRANITE_MODEL") {
+        config
+            .granite
+            .get_or_insert_with(GraniteConfig::default)
+            .model = model;
+    }
+    if let Ok(backend) = std::env::var("VOXTYPE_GRANITE_BACKEND") {
+        config
+            .granite
+            .get_or_insert_with(GraniteConfig::default)
+            .backend = backend;
     }
     if let Ok(lang) = std::env::var("VOXTYPE_LANGUAGE") {
         config.whisper.language = LanguageConfig::from_comma_separated(&lang);

@@ -58,6 +58,7 @@ Selects which speech-to-text engine to use for transcription.
 - `dolphin` - Dictation-optimized CTC via ONNX Runtime (Chinese + English)
 - `omnilingual` - FunASR Omnilingual CTC via ONNX Runtime (50+ languages)
 - `cohere` - Cohere Transcribe encoder-decoder via ONNX Runtime (#1 Open ASR Leaderboard, 14 languages, ~3 GB model)
+- `granite` - Native resident Granite TurboCTC via `transcribe.cpp` (this fork; requires `granite` or `granite-cuda`)
 
 **Example:**
 ```toml
@@ -93,6 +94,48 @@ new engine to take effect.
 - See [PARAKEET.md](PARAKEET.md) for detailed Parakeet setup instructions
 - See [MOONSHINE.md](MOONSHINE.md) for detailed Moonshine setup instructions
 - Cohere Transcribe is the largest model voxtype ships (~3 GB int8); use `voxtype setup model` to download it
+
+---
+
+## [granite]
+
+Native Granite settings are optional and do not change the default Whisper engine.
+Selecting `engine = "granite"` requires a `[granite]` section or a model/backend
+override that creates it.
+
+```toml
+engine = "granite"
+
+[granite]
+model = "granite-speech-5.0-470m-turboctc-Q8_0.gguf"
+backend = "auto"
+```
+
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `model` | `granite-speech-5.0-470m-turboctc-Q8_0.gguf` | Filename in Voxtype's models directory, or an explicit absolute/relative GGUF path. `~/` is expanded. |
+| `backend` | `auto` | `auto` delegates selection to the native runtime; `cpu` forces CPU; `cuda` requires CUDA without silently falling back. |
+
+`cuda` requires a `granite-cuda` build and an available CUDA runtime/device.
+The initial integration is English batch dictation, with at most 60 seconds of
+16 kHz mono PCM per call. The model and session remain resident until the
+transcriber is dropped. Streaming, translation, and on-demand loading are not
+implemented for this engine.
+
+CLI equivalents:
+
+```bash
+voxtype --engine granite --model /path/to/model.gguf --granite-backend cpu daemon
+voxtype config set granite.model /path/to/model.gguf
+voxtype config set granite.backend cpu
+```
+
+Use `VOXTYPE_GRANITE_MODEL` and `VOXTYPE_GRANITE_BACKEND` for engine-specific
+environment overrides. CLI values take precedence. The TUI exposes both fields
+when the running source build includes Granite.
+
+See [Native Granite](USER_MANUAL.md#native-granite-fork) for shared-runtime builds
+and the fork-local Super+V configuration.
 
 ---
 
@@ -3538,7 +3581,7 @@ Any config file setting can be overridden via environment variable. These are ap
 
 | Variable | Type | Config equivalent |
 |----------|------|-------------------|
-| `VOXTYPE_MODEL` | string | `whisper.model` |
+| `VOXTYPE_MODEL` | string | `whisper.model`, or `granite.model` when the loaded file/environment selects Granite |
 | `VOXTYPE_ENGINE` | string | `engine` |
 | `VOXTYPE_LANGUAGE` | string | `whisper.language` |
 | `VOXTYPE_TRANSLATE` | bool | `whisper.translate` |
@@ -3548,6 +3591,15 @@ Any config file setting can be overridden via environment variable. These are ap
 | `VOXTYPE_ON_DEMAND_LOADING` | bool | `whisper.on_demand_loading` |
 | `VOXTYPE_REMOTE_ENDPOINT` | string | `whisper.remote_endpoint` |
 | `VOXTYPE_WHISPER_API_KEY` | string | `whisper.remote_api_key` |
+
+**Granite (this fork):**
+
+| Variable | Type | Config equivalent |
+|----------|------|-------------------|
+| `VOXTYPE_GRANITE_MODEL` | string | `granite.model` |
+| `VOXTYPE_GRANITE_BACKEND` | string | `granite.backend` |
+
+Prefer these dedicated variables when selecting Granite with a CLI engine override.
 
 **Audio:**
 

@@ -14,6 +14,8 @@
 //! - Optionally OpenVINO Whisper for Intel NPU/CPU/GPU (when `openvino-whisper` feature is enabled)
 
 pub mod cli;
+#[cfg(feature = "granite")]
+pub mod granite;
 #[cfg(feature = "parakeet")]
 pub mod parakeet_streaming;
 pub mod remote;
@@ -161,6 +163,20 @@ pub trait Transcriber: Send + Sync {
 /// Factory function to create transcriber based on configured engine
 pub fn create_transcriber(config: &Config) -> Result<Box<dyn Transcriber>, TranscribeError> {
     match config.engine {
+        #[cfg(feature = "granite")]
+        TranscriptionEngine::Granite => {
+            let settings = config.granite.as_ref().ok_or_else(|| {
+                TranscribeError::ConfigError(
+                    "Granite engine selected but [granite] config section is missing".to_string(),
+                )
+            })?;
+            Ok(Box::new(granite::GraniteTranscriber::new(settings)?))
+        }
+        #[cfg(not(feature = "granite"))]
+        TranscriptionEngine::Granite => Err(TranscribeError::InitFailed(
+            "Granite engine requested but voxtype was not compiled with --features granite"
+                .to_string(),
+        )),
         TranscriptionEngine::Whisper => {
             let transcriber = create_whisper_transcriber(&config.whisper)?;
             if config.whisper.streaming {
@@ -435,6 +451,33 @@ pub fn create_transcriber_with_config_path(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(not(feature = "granite"))]
+    fn granite_without_feature_has_actionable_error() {
+        let config = Config {
+            engine: TranscriptionEngine::Granite,
+            granite: Some(crate::config::GraniteConfig::default()),
+            ..Default::default()
+        };
+        assert!(matches!(
+            create_transcriber(&config),
+            Err(TranscribeError::InitFailed(message)) if message.contains("--features granite")
+        ));
+    }
+
+    #[test]
+    #[cfg(feature = "granite")]
+    fn granite_missing_configuration_has_actionable_error() {
+        let config = Config {
+            engine: TranscriptionEngine::Granite,
+            ..Default::default()
+        };
+        assert!(matches!(
+            create_transcriber(&config),
+            Err(TranscribeError::ConfigError(message)) if message.contains("[granite]")
+        ));
+    }
 
     /// An old-style config.toml — no `[streaming]` section at all, just the
     /// per-engine `streaming_*` fields that predate it — must resolve to

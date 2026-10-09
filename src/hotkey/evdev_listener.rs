@@ -442,6 +442,21 @@ fn reset_for_device_change(
 
 /// Main listener loop running in a blocking task
 #[allow(clippy::too_many_arguments)]
+fn release_hotkey(
+    key: Key,
+    value: i32,
+    target_key: Key,
+    modifier_keys: &HashSet<Key>,
+    is_pressed: &mut bool,
+) -> bool {
+    if *is_pressed && value == 0 && (key == target_key || modifier_keys.contains(&key)) {
+        *is_pressed = false;
+        true
+    } else {
+        false
+    }
+}
+
 fn evdev_listener_loop(
     target_key: Key,
     modifier_keys: HashSet<Key>,
@@ -603,6 +618,13 @@ fn evdev_listener_loop(
                 }
             }
 
+            if release_hotkey(key, value, target_key, &modifier_keys, &mut is_pressed) {
+                tracing::debug!("Hotkey released");
+                if tx.blocking_send(HotkeyEvent::Released).is_err() {
+                    return Ok(());
+                }
+            }
+
             // Check target key
             if key == target_key {
                 let modifiers_satisfied =
@@ -642,14 +664,6 @@ fn evdev_listener_loop(
                                 })
                                 .is_err()
                             {
-                                return Ok(()); // Channel closed
-                            }
-                        }
-                        0 if is_pressed => {
-                            // Key release
-                            is_pressed = false;
-                            tracing::debug!("Hotkey released");
-                            if tx.blocking_send(HotkeyEvent::Released).is_err() {
                                 return Ok(()); // Channel closed
                             }
                         }
@@ -874,6 +888,69 @@ fn fd_is_hung_up(fd: RawFd) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hotkey_release_handles_either_order_once() {
+        let modifiers = HashSet::from([Key::KEY_LEFTMETA]);
+        for (first, second) in [
+            (Key::KEY_V, Key::KEY_LEFTMETA),
+            (Key::KEY_LEFTMETA, Key::KEY_V),
+        ] {
+            let mut pressed = true;
+            assert!(release_hotkey(
+                first,
+                0,
+                Key::KEY_V,
+                &modifiers,
+                &mut pressed
+            ));
+            assert!(!pressed);
+            assert!(!release_hotkey(
+                second,
+                0,
+                Key::KEY_V,
+                &modifiers,
+                &mut pressed
+            ));
+        }
+    }
+
+    #[test]
+    fn hotkey_release_ignores_repeats_unrelated_keys_and_idle() {
+        let modifiers = HashSet::from([Key::KEY_LEFTMETA]);
+        let mut pressed = true;
+        for (key, value) in [
+            (Key::KEY_V, 1),
+            (Key::KEY_V, 2),
+            (Key::KEY_LEFTMETA, 1),
+            (Key::KEY_LEFTMETA, 2),
+            (Key::KEY_A, 0),
+        ] {
+            assert!(!release_hotkey(
+                key,
+                value,
+                Key::KEY_V,
+                &modifiers,
+                &mut pressed
+            ));
+            assert!(pressed);
+        }
+        pressed = false;
+        assert!(!release_hotkey(
+            Key::KEY_V,
+            0,
+            Key::KEY_V,
+            &modifiers,
+            &mut pressed
+        ));
+        assert!(!release_hotkey(
+            Key::KEY_LEFTMETA,
+            0,
+            Key::KEY_V,
+            &modifiers,
+            &mut pressed
+        ));
+    }
 
     /// #556: a device change while the hotkey is held must synthesize a
     /// release. Without it the real key-up is dropped by the `0 if is_pressed`

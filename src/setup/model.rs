@@ -2082,6 +2082,8 @@ const GGML_MAGIC: [u8; 4] = *b"lmgg";
 pub(crate) enum ContentCheck {
     /// ggml container: whisper models and the Silero VAD model.
     Ggml,
+    /// GGUF container: native Granite models.
+    Gguf,
     /// No format marker worth checking (ONNX protobufs); completeness only.
     SizeOnly,
 }
@@ -2111,16 +2113,26 @@ pub(crate) fn validate_download(
         }
     }
 
-    if check == ContentCheck::Ggml {
+    if check != ContentCheck::SizeOnly {
+        let expected_magic = if check == ContentCheck::Gguf {
+            *b"GGUF"
+        } else {
+            GGML_MAGIC
+        };
         let mut magic = [0u8; 4];
         std::fs::File::open(path)
             .and_then(|mut f| f.read_exact(&mut magic))
             .map_err(|e| anyhow::anyhow!("could not read the download: {}", e))?;
-        if magic != GGML_MAGIC {
+        if magic != expected_magic {
             anyhow::bail!(
-                "not a ggml model: expected magic {:02x?}, got {:02x?}. \
+                "not a {} model: expected magic {:02x?}, got {:02x?}. \
                  The server likely returned an error page instead of the model.",
-                GGML_MAGIC,
+                if check == ContentCheck::Gguf {
+                    "GGUF"
+                } else {
+                    "ggml"
+                },
+                expected_magic,
                 magic
             );
         }
@@ -2181,6 +2193,50 @@ pub fn download_model(model_name: &str) -> anyhow::Result<()> {
         print_success(&format!("Saved to {:?}", model_path));
     }
     Ok(())
+}
+
+/// Pinned Q8 Granite TurboCTC model supported by the native backend.
+pub const GRANITE_MODEL_NAME: &str = "granite-speech-5.0-470m-turboctc-Q8_0.gguf";
+const GRANITE_MODEL_SIZE: u64 = 505_606_496;
+const GRANITE_MODEL_SHA256: &str =
+    "0408fe0b33be19af5be423d8ba6b43768608b6f065e1ac97b78c84b55c140738";
+const GRANITE_MODEL_URL: &str = concat!(
+    "https://huggingface.co/handy-computer/granite-speech-5.0-470m-turboctc-gguf/resolve/",
+    "2b0b44d0d6c8b94a2e4f04a2cf3ec6a5c054463b/",
+    "granite-speech-5.0-470m-turboctc-Q8_0.gguf"
+);
+
+/// Verify the stock Granite model against its pinned size and checksum.
+pub fn validate_granite_model(path: &Path) -> anyhow::Result<()> {
+    validate_download(path, Some(GRANITE_MODEL_SIZE), ContentCheck::Gguf)?;
+    anyhow::ensure!(
+        sha256_file(path)? == GRANITE_MODEL_SHA256,
+        "Granite model SHA-256 checksum mismatch"
+    );
+    Ok(())
+}
+
+/// Download and verify Granite without exposing a partial model file.
+pub fn download_granite_model(name: &str) -> anyhow::Result<()> {
+    anyhow::ensure!(
+        name == GRANITE_MODEL_NAME,
+        "Unknown Granite model '{}'",
+        name
+    );
+    let models_dir = Config::models_dir();
+    std::fs::create_dir_all(&models_dir)?;
+    let destination = models_dir.join(name);
+    let part = download_to_part(
+        GRANITE_MODEL_URL,
+        &destination,
+        name,
+        name,
+        Some(GRANITE_MODEL_SIZE),
+    )?;
+    validate_granite_model(&part).inspect_err(|_| {
+        let _ = std::fs::remove_file(&part);
+    })?;
+    promote_part(&part, &destination)
 }
 
 /// GTCRN speech enhancement model URL and filename
