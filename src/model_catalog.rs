@@ -25,9 +25,10 @@ pub const CATALOG_ENGINES: &[&str] = &[
     "cohere",
     "openvino",
     "granite",
+    "nemotron",
 ];
 
-/// Models voxtype knows how to download for `engine`.
+/// Known model names for `engine`, including manually installed native models.
 pub fn model_catalog(engine: &str) -> Vec<&'static str> {
     match engine {
         "whisper" => model::valid_model_names(),
@@ -45,6 +46,7 @@ pub fn model_catalog(engine: &str) -> Vec<&'static str> {
         ],
         "openvino" => model::valid_openvino_model_names(),
         "granite" => vec![model::GRANITE_MODEL_NAME],
+        "nemotron" => vec![default_model("nemotron")],
         _ => Vec::new(),
     }
 }
@@ -64,6 +66,7 @@ pub const fn default_model(engine: &str) -> &'static str {
         b"cohere" => "cohere-transcribe-q4f16",
         b"openvino" => "base.en-int8",
         b"granite" => model::GRANITE_MODEL_NAME,
+        b"nemotron" => "nemotron-speech-streaming-en-0.6b-Q8_0.gguf",
         _ => "",
     }
 }
@@ -90,8 +93,8 @@ pub fn model_dir_name(engine: &str, model: &str) -> String {
 
 /// The `--model` value that downloads this catalog entry.
 ///
-/// Every catalog engine resolves to one (#687); `None` only for engines that
-/// have no catalog at all.
+/// Downloadable catalog engines resolve to one (#687). Manually supplied
+/// Nemotron GGUF files and engines without a catalog return `None`.
 ///
 /// SenseVoice and Moonshine return their directory names rather than their
 /// config values, because the short forms (`small`, `base`, `tiny`) are also
@@ -109,7 +112,7 @@ pub fn download_arg(engine: &str, model: &str) -> Option<String> {
 /// On-disk location of a model: a single `ggml-<name>.bin` file for whisper,
 /// a directory for every ONNX engine.
 fn model_path(models_dir: &Path, engine: &str, model: &str) -> std::path::PathBuf {
-    if engine == "granite" {
+    if matches!(engine, "granite" | "nemotron") {
         if let Some(relative) = model.strip_prefix("~/") {
             if let Some(home) = dirs::home_dir() {
                 return home.join(relative);
@@ -186,7 +189,7 @@ pub(crate) fn model_health_in(models_dir: &Path, engine: &str, model: &str) -> M
         };
     }
 
-    if engine == "granite" {
+    if matches!(engine, "granite" | "nemotron") {
         return match model::validate_download(&path, None, model::ContentCheck::Gguf) {
             Ok(()) => ModelHealth::Present,
             Err(error) => ModelHealth::Corrupt(vec![format!("{}: {}", display_name(&path), error)]),
@@ -270,6 +273,11 @@ pub(crate) fn verify_model_in(models_dir: &Path, engine: &str, model: &str) -> M
     }
 
     let Some(manifest) = read_cached_manifest(&path) else {
+        if engine == "nemotron" {
+            return ModelVerification::Unverifiable(
+                "manually installed Nemotron GGUF; compare its SHA-256 with the model publisher",
+            );
+        }
         return ModelVerification::Unverifiable(
             "no manifest was recorded when this model was downloaded; \
              re-download it to enable verification",
@@ -328,6 +336,35 @@ mod tests {
     use super::*;
     use crate::config_set::ENGINE_NAMES;
     use crate::setup::manifest::{write_cached_manifest, Manifest, ManifestFile};
+
+    #[test]
+    fn nemotron_catalog_checks_manual_gguf_without_offering_download() {
+        let temporary = tempfile::tempdir().unwrap();
+        let filename = default_model("nemotron");
+        let path = temporary.path().join(filename);
+        assert_eq!(filename, crate::config::NemotronConfig::default().model);
+        assert_eq!(download_arg("nemotron", filename), None);
+        assert_eq!(
+            model_health_in(temporary.path(), "nemotron", filename),
+            ModelHealth::Missing
+        );
+        std::fs::write(&path, b"GGUFtest").unwrap();
+        assert!(model_installed_in(temporary.path(), "nemotron", filename));
+        assert!(model_installed_in(
+            temporary.path(),
+            "nemotron",
+            path.to_str().unwrap()
+        ));
+        assert!(matches!(
+            verify_model_in(temporary.path(), "nemotron", filename),
+            ModelVerification::Unverifiable(_)
+        ));
+        std::fs::write(&path, b"<html>error</html>").unwrap();
+        assert!(matches!(
+            model_health_in(temporary.path(), "nemotron", filename),
+            ModelHealth::Corrupt(_)
+        ));
+    }
 
     #[test]
     fn granite_catalog_checks_gguf_files_and_explicit_paths() {

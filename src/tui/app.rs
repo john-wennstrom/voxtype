@@ -547,6 +547,11 @@ fn detect_missing_model() -> Option<MissingModel> {
                 .unwrap_or_default(),
             "voxtype setup --download",
         ),
+        config::TranscriptionEngine::Nemotron => (
+            "nemotron",
+            cfg.nemotron.clone().unwrap_or_default().model,
+            "Download the Nemotron GGUF described in docs/CONFIGURATION.md",
+        ),
     };
 
     if model.is_empty() {

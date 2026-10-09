@@ -835,7 +835,7 @@ Any valid evdev key name works. Common choices:
 
 Whisper uses whisper.cpp and works with any binary variant. The ONNX engines
 require an ONNX binary variant (`voxtype-*-onnx-*`). This fork also provides a
-native Granite engine in source builds with `granite` or `granite-cuda` enabled.
+native Granite and Nemotron engines in source builds.
 
 | Engine | Best For | GPU Required | Languages |
 |--------|----------|--------------|-----------|
@@ -848,6 +848,56 @@ native Granite engine in source builds with `granite` or `granite-cuda` enabled.
 | **Omnilingual** | Broadest language coverage in ONNX engines | No | 50+ languages |
 | **Cohere** | #1 Open ASR Leaderboard accuracy | Optional (CUDA via `cohere-cuda`) | Arabic, German, English, Spanish, French, Hindi, Italian, Japanese, Korean, Dutch, Portuguese, Russian, Turkish, Chinese (14) |
 | **Granite** (this fork) | Resident TurboCTC dictation | Optional (native CPU or CUDA) | English in this initial integration |
+| **Nemotron** (this fork) | Live popup preview, final insertion on release | Optional (native CPU or CUDA) | English |
+
+### Native Nemotron Streaming (Fork)
+
+The default `just` workflow uses the local Nemotron English 0.6B Q8 GGUF with
+CUDA and a transcript popup. Granite remains available with `just granite`.
+Stop an existing daemon before starting the other engine.
+
+```bash
+just build-nemotron
+bash scripts/run-nemotron.sh transcribe tests/fixtures/vad/speech_hello.wav
+just
+```
+
+Hold Super+V to record. The centered popup previews your words without typing
+or taking focus. Release to finalize and insert the text into the original
+application, with no automatic Enter. Final text stays visible for two seconds.
+The sample caps recording at 30 seconds. At that limit capture stops, but a
+held Super+V session waits for release before inserting its final transcript.
+The sample config uses dark 28px text, a solid white background, wrapping,
+square corners, and no border or shadow. GNOME uses XWayland; layer-shell
+compositors can also use a translucent background.
+
+Disable only the popup in `config/nemotron.toml`:
+
+```toml
+[transcript_popup]
+enabled = false
+```
+
+Or run `VOXTYPE_TRANSCRIPT_POPUP=false just`. Transcription and final insertion
+are unchanged. Keep GNOME's Super+V no-op shortcut bound to `/usr/bin/true`,
+just as for Granite, to prevent repeated V characters reaching applications.
+
+The local launcher reads `models/nemotron-speech-streaming-en-0.6b-Q8_0.gguf`.
+The verified file is 729,650,176 bytes with SHA-256
+`90d8c89714cd31efc88be62a40c6b2bea57e0cc2063af1ffe2c28f1a228ca110`.
+It was downloaded from revision `9789e0ebf77277911272f0d9a35e1646b5aa6004` of
+`handy-computer/nemotron-speech-streaming-en-0.6b-gguf` for local development.
+It is not in the production model download catalog. Set
+`VOXTYPE_NEMOTRON_MODEL` for another installed path.
+
+Build requirements match Granite, plus Wayland and xkbcommon development files
+for the native frontend. `just build-nemotron` builds both binaries into a
+separate `target/nemotron-cuda` directory. The launcher also accepts
+`VOXTYPE_NEMOTRON_CONFIG`, `VOXTYPE_NEMOTRON_BINARY`, and `TRANSCRIBE_DIR`.
+This is a local development build, not a portable release package.
+
+See [Nemotron and popup settings](CONFIGURATION.md#nemotron) for all config,
+environment, and CLI controls.
 
 ### Native Granite (Fork)
 
@@ -856,18 +906,18 @@ There is no HTTP server or separate inference worker in this path. Existing
 hotkey capture, microphone capture, text processing, and output drivers are reused.
 
 The development workflow on this machine reuses the verified shared runtime at
-`../target/native-cuda` and the installed GGUF in Granitevox's data directory:
+`target/native-cuda` and the installed GGUF in Granitevox's data directory:
 
 ```bash
 cd voxtype
 just build
 bash scripts/run-granite.sh transcribe tests/fixtures/vad/speech_hello.wav
-just
+just granite
 ```
 
 Run these from this fork, not the parent Granitevox project. Stop the old
 Granitevox launcher before starting the new daemon, so two Voxtype processes
-do not observe the same hotkey. `just` runs only the native Voxtype daemon.
+do not observe the same hotkey. `just granite` runs the native Granite daemon.
 The sample `config/granite.toml` uses hold-to-talk Super+V, a 30-second recording
 cap, and eitype-only output with no clipboard fallback. The launcher requests
 eitype portal authorization before startup and aborts if it is declined.

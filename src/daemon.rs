@@ -833,6 +833,9 @@ pub struct Daemon {
     /// OSD child supervisor task. Holds the JoinHandle so dropping it (on
     /// daemon shutdown) kill_on_drop's the spawned voxtype-osd process.
     osd_supervisor_task: Option<tokio::task::JoinHandle<()>>,
+    transcript_publisher: Option<crate::osd::transcript::TranscriptPublisher>,
+    transcript_supervisor_task: Option<tokio::task::JoinHandle<()>>,
+    streaming_ptt_held: bool,
     // Model manager for multi-model support
     model_manager: Option<ModelManager>,
     // Background task for loading model on-demand
@@ -981,6 +984,9 @@ impl Daemon {
             is_external_trigger: false,
             streaming_drain_pump: None,
             osd_supervisor_task: None,
+            transcript_publisher: None,
+            transcript_supervisor_task: None,
+            streaming_ptt_held: false,
             model_manager: None,
             model_load_task: None,
             whisper_prepare_task: None,
@@ -1306,6 +1312,8 @@ impl Daemon {
             typed_chars: 0,
             file_output_path,
         };
+        self.streaming_ptt_held = false;
+        self.publish_transcript("", true);
         self.update_state("streaming");
         self.play_feedback(SoundEvent::RecordingStart);
 
@@ -1392,13 +1400,18 @@ impl Daemon {
                     ..
                 }
             );
-            if file_output {
-                tracing::info!("Stopping streaming session (file output); closing capture");
+            let preserve_final =
+                file_output || self.config.engine == crate::config::TranscriptionEngine::Nemotron;
+            self.streaming_ptt_held = false;
+            if preserve_final {
+                tracing::info!(
+                    "Stopping streaming session; closing capture and preserving final text"
+                );
             } else {
                 tracing::info!("Stopping streaming session; closing capture and disowning session");
             }
             self.stop_streaming_capture(audio_capture).await;
-            if !file_output {
+            if !preserve_final {
                 // Drop the typing surface synchronously so any
                 // Final/Partial events the backend emits while
                 // draining its internal buffer reach the event-pump
@@ -1508,12 +1521,14 @@ impl Daemon {
         }
     }
 
-    /// Early-stop the streaming capture: cut audio flow to the backend,
-    /// start the OSD silence pump so the visualizer stays alive during
-    /// drain, and stop the mic. Leaves `streaming_session`/`_chain` for
+    /// Stop the mic and start the OSD silence pump during backend drain.
+    /// Nemotron drains captured audio; live-typing streams cut audio immediately.
+    /// Leaves `streaming_session`/`_chain` for
     /// the caller to disown (or keep, to receive trailing finals).
     async fn stop_streaming_capture(&mut self, audio_capture: &mut Option<Box<dyn AudioCapture>>) {
-        self.cut_streaming_audio();
+        if self.config.engine != crate::config::TranscriptionEngine::Nemotron {
+            self.cut_streaming_audio();
+        }
         self.start_streaming_drain_pump();
         if let Some(mut c) = audio_capture.take() {
             let _ = c.stop().await;
@@ -1529,6 +1544,7 @@ impl Daemon {
         streaming_session: &mut Option<StreamingSession>,
         streaming_chain: &mut Option<Vec<Box<dyn TextOutput>>>,
     ) {
+        self.streaming_ptt_held = false;
         if let Some(mut c) = audio_capture.take() {
             let _ = c.stop().await;
         }
@@ -1539,6 +1555,12 @@ impl Daemon {
             let _ = h.task.await;
         }
         self.stop_streaming_drain_pump();
+        if streaming_session
+            .as_ref()
+            .is_none_or(|session| session.finalized_text().trim().is_empty())
+        {
+            self.clear_transcript();
+        }
 
         // File-output sessions (`--file=path`) never typed anything as
         // they went — see the event pump's `file_output` branch — so the
@@ -1629,6 +1651,8 @@ impl Daemon {
         streaming_chain: &mut Option<Vec<Box<dyn TextOutput>>>,
         notification_body: &str,
     ) {
+        self.streaming_ptt_held = false;
+        self.clear_transcript();
         let backend_task = streaming_handle.take().map(|h| {
             let _ = h.cancel.send(());
             h.task
@@ -1678,6 +1702,20 @@ impl Daemon {
         }
     }
 
+    fn publish_transcript(&self, text: &str, recording: bool) {
+        if let Some(publisher) = &self.transcript_publisher {
+            if let Err(error) = publisher.publish(text, recording) {
+                tracing::warn!("Transcript popup update failed: {error}");
+            }
+        }
+    }
+
+    fn clear_transcript(&self) {
+        if let Some(publisher) = &self.transcript_publisher {
+            publisher.clear();
+        }
+    }
+
     /// Start a streaming-mode audio capture.
     ///
     /// Like [`start_recording_capture`] but additionally returns a receiver
@@ -1695,8 +1733,8 @@ impl Daemon {
         match audio::create_capture(&self.config.audio) {
             Ok(mut capture) => match capture.start().await {
                 Ok(chunk_rx) => {
-                    // Bounded; backed-up streaming backend drops chunks
-                    // rather than back-pressuring the capture.
+                    // Bounded backend inbox. Nemotron spools pending chunks;
+                    // live-typing streams remain best-effort.
                     let (streaming_tx, streaming_rx) = tokio::sync::mpsc::channel::<Vec<f32>>(64);
 
                     if let Some(handle) = self.level_emitter_task.take() {
@@ -1705,7 +1743,16 @@ impl Daemon {
                     self.is_external_trigger = track_silence;
                     let speech_tracker = self.new_speech_tracker(track_silence);
                     self.silence_tracker = speech_tracker.clone();
-                    let handle = if let Some(hub) = &self.level_hub {
+                    let handle = if self.config.engine
+                        == crate::config::TranscriptionEngine::Nemotron
+                    {
+                        audio::levels::spawn_lossless_streaming_tap(
+                            chunk_rx,
+                            self.level_hub.as_ref().map(|hub| hub.frame_sink()),
+                            streaming_tx,
+                            speech_tracker,
+                        )
+                    } else if let Some(hub) = &self.level_hub {
                         audio::levels::spawn_emitter_with_streaming_tap(
                             chunk_rx,
                             hub.frame_sink(),
@@ -1797,7 +1844,8 @@ impl Daemon {
                 | crate::config::TranscriptionEngine::Cohere
                 | crate::config::TranscriptionEngine::OpenVino
                 | crate::config::TranscriptionEngine::Soniox
-                | crate::config::TranscriptionEngine::Granite => {
+                | crate::config::TranscriptionEngine::Granite
+                | crate::config::TranscriptionEngine::Nemotron => {
                     if let Some(t) = self.transcriber_preloaded.clone() {
                         Ok(t)
                     } else {
@@ -3266,7 +3314,8 @@ impl Daemon {
                 | crate::config::TranscriptionEngine::Cohere
                 | crate::config::TranscriptionEngine::OpenVino
                 | crate::config::TranscriptionEngine::Soniox
-                | crate::config::TranscriptionEngine::Granite => {
+                | crate::config::TranscriptionEngine::Granite
+                | crate::config::TranscriptionEngine::Nemotron => {
                     // Non-Whisper engines do their own setup; Soniox just validates
                     // API key + endpoint at construction (no model to download).
                     self.transcriber_preloaded = Some(Arc::from(
@@ -3334,6 +3383,27 @@ impl Daemon {
         // Cached transcriber for eager chunk processing during recording
         let mut eager_transcriber: Option<Arc<dyn Transcriber>> = None;
 
+        if self.config.transcript_popup.enabled {
+            self.config
+                .transcript_popup
+                .validate()
+                .map_err(crate::error::VoxtypeError::Config)?;
+            let path =
+                Config::runtime_dir().join(format!("transcript-{}.json", std::process::id()));
+            match crate::osd::transcript::TranscriptPublisher::new(
+                path,
+                self.config.transcript_popup.clone(),
+            ) {
+                Ok(publisher) => {
+                    self.transcript_supervisor_task = Some(
+                        crate::osd::supervisor::spawn_transcript(publisher.path().to_path_buf()),
+                    );
+                    self.transcript_publisher = Some(publisher);
+                }
+                Err(error) => tracing::warn!("Transcript popup unavailable: {error}"),
+            }
+        }
+
         // Streaming session locals (Some only while State::Streaming).
         let mut streaming_handle: Option<StreamHandle> = None;
         let mut streaming_session: Option<StreamingSession> = None;
@@ -3388,7 +3458,8 @@ impl Daemon {
                 | crate::config::TranscriptionEngine::Cohere
                 | crate::config::TranscriptionEngine::OpenVino
                 | crate::config::TranscriptionEngine::Soniox
-                | crate::config::TranscriptionEngine::Granite => {
+                | crate::config::TranscriptionEngine::Granite
+                | crate::config::TranscriptionEngine::Nemotron => {
                                             let config = self.config.clone();
                                             self.model_load_task = Some(tokio::task::spawn_blocking(move || {
                                                 crate::transcribe::create_transcriber(&config).map(Arc::from)
@@ -3420,7 +3491,8 @@ impl Daemon {
                 | crate::config::TranscriptionEngine::Cohere
                 | crate::config::TranscriptionEngine::OpenVino
                 | crate::config::TranscriptionEngine::Soniox
-                | crate::config::TranscriptionEngine::Granite => {
+                | crate::config::TranscriptionEngine::Granite
+                | crate::config::TranscriptionEngine::Nemotron => {
                                             if let Some(ref t) = self.transcriber_preloaded {
                                                 let transcriber = t.clone();
                                                 tokio::task::spawn_blocking(move || {
@@ -3446,6 +3518,7 @@ impl Daemon {
                                     model_override.clone(),
                                     false,
                                 ).await {
+                                    self.streaming_ptt_held = self.config.engine == crate::config::TranscriptionEngine::Nemotron;
                                     tracing::info!("Streaming session started (push-to-talk)");
                                 } else {
                                     // Create and start audio capture
@@ -3494,15 +3567,19 @@ impl Daemon {
 
                         (HotkeyEvent::Released, ActivationMode::PushToTalk) => {
                             tracing::debug!("Received HotkeyEvent::Released (push-to-talk), state.is_recording() = {}", state.is_recording());
+                            let preserve_final = self.streaming_ptt_held;
+                            self.streaming_ptt_held = false;
                             if state.is_streaming() {
-                                tracing::debug!("Streaming push-to-talk released; closing audio capture and disowning session");
+                                tracing::debug!("Streaming push-to-talk released; closing audio capture");
                                 self.stop_streaming_capture(&mut audio_capture).await;
                                 // Drop session/chain so the backend's
                                 // post-stop flush emission is dropped at
                                 // the event pump instead of typed.
                                 // Matches the SIGUSR2 stop path.
-                                streaming_session = None;
-                                streaming_chain = None;
+                                if !preserve_final {
+                                    streaming_session = None;
+                                    streaming_chain = None;
+                                }
                             } else if let State::Recording { model_override, .. } = &state {
                                 let model_override = model_override.clone();
 
@@ -3601,7 +3678,8 @@ impl Daemon {
                 | crate::config::TranscriptionEngine::Cohere
                 | crate::config::TranscriptionEngine::OpenVino
                 | crate::config::TranscriptionEngine::Soniox
-                | crate::config::TranscriptionEngine::Granite => {
+                | crate::config::TranscriptionEngine::Granite
+                | crate::config::TranscriptionEngine::Nemotron => {
                                             let config = self.config.clone();
                                             self.model_load_task = Some(tokio::task::spawn_blocking(move || {
                                                 crate::transcribe::create_transcriber(&config).map(Arc::from)
@@ -3633,7 +3711,8 @@ impl Daemon {
                 | crate::config::TranscriptionEngine::Cohere
                 | crate::config::TranscriptionEngine::OpenVino
                 | crate::config::TranscriptionEngine::Soniox
-                | crate::config::TranscriptionEngine::Granite => {
+                | crate::config::TranscriptionEngine::Granite
+                | crate::config::TranscriptionEngine::Nemotron => {
                                             if let Some(ref t) = self.transcriber_preloaded {
                                                 let transcriber = t.clone();
                                                 tokio::task::spawn_blocking(move || {
@@ -4119,7 +4198,8 @@ impl Daemon {
                 | crate::config::TranscriptionEngine::Cohere
                 | crate::config::TranscriptionEngine::OpenVino
                 | crate::config::TranscriptionEngine::Soniox
-                | crate::config::TranscriptionEngine::Granite => {
+                | crate::config::TranscriptionEngine::Granite
+                | crate::config::TranscriptionEngine::Nemotron => {
                                     let config = self.config.clone();
                                     self.model_load_task = Some(tokio::task::spawn_blocking(move || {
                                         crate::transcribe::create_transcriber(&config).map(Arc::from)
@@ -4150,7 +4230,8 @@ impl Daemon {
                 | crate::config::TranscriptionEngine::Cohere
                 | crate::config::TranscriptionEngine::OpenVino
                 | crate::config::TranscriptionEngine::Soniox
-                | crate::config::TranscriptionEngine::Granite => {
+                | crate::config::TranscriptionEngine::Granite
+                | crate::config::TranscriptionEngine::Nemotron => {
                                     if let Some(ref t) = self.transcriber_preloaded {
                                         let transcriber = t.clone();
                                         tokio::task::spawn_blocking(move || {
@@ -4243,7 +4324,8 @@ impl Daemon {
                         Some(h) => h.events.recv().await,
                         None => std::future::pending().await,
                     }
-                }, if state.is_streaming() && streaming_handle.is_some() => {
+                }, if state.is_streaming() && streaming_handle.is_some()
+                    && crate::transcribe::streaming::stream_events_ready(self.streaming_ptt_held, audio_capture.is_some()) => {
                     // File-output sessions (`--file=path`) accumulate into
                     // finalized_text via the `_silent` session methods
                     // instead of typing through `chain` — there's no
@@ -4255,6 +4337,12 @@ impl Daemon {
                         State::Streaming { file_output_path: Some(_), .. }
                     );
                     match event {
+                        Some(StreamingEvent::Preview { text, .. }) => {
+                            self.publish_transcript(&text, true);
+                            if let State::Streaming { partial_buffer, .. } = &mut state {
+                                *partial_buffer = text;
+                            }
+                        }
                         Some(StreamingEvent::Partial { text, .. }) => {
                             if let Some(s) = streaming_session.as_mut() {
                                 if file_output {
@@ -4299,6 +4387,7 @@ impl Daemon {
                                     finalized_text.clear();
                                     finalized_text.push_str(s.finalized_text());
                                 }
+                                self.publish_transcript(s.finalized_text(), false);
                             }
                         }
                         Some(StreamingEvent::Replace { backspace, text, .. }) => {
@@ -4578,6 +4667,11 @@ impl Daemon {
         }
         self.restore_recording_media();
         notification::close_persistent().await;
+        self.clear_transcript();
+        if let Some(task) = self.transcript_supervisor_task.take() {
+            task.abort();
+            let _ = task.await;
+        }
         if let Some(task) = streaming_task {
             let _ = task.await;
         }
@@ -4667,6 +4761,76 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+
+    #[tokio::test]
+    async fn streaming_stop_drains_nemotron_audio_but_cuts_live_typing() {
+        for engine in [
+            crate::config::TranscriptionEngine::Nemotron,
+            crate::config::TranscriptionEngine::Soniox,
+        ] {
+            let mut config = Config {
+                engine,
+                ..Default::default()
+            };
+            config.audio.feedback.enabled = false;
+            let mut daemon = Daemon::new(config, None);
+            let (release_tx, release_rx) = tokio::sync::oneshot::channel();
+            let (drained_tx, drained_rx) = tokio::sync::oneshot::channel();
+            daemon.level_emitter_task = Some(tokio::spawn(async move {
+                release_rx.await.unwrap();
+                drained_tx.send(()).unwrap();
+            }));
+
+            daemon.stop_streaming_capture(&mut None).await;
+
+            if engine == crate::config::TranscriptionEngine::Nemotron {
+                let drain = daemon.level_emitter_task.take().unwrap();
+                release_tx.send(()).unwrap();
+                tokio::time::timeout(Duration::from_secs(5), drain)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                drained_rx.await.unwrap();
+            } else {
+                assert!(daemon.level_emitter_task.is_none());
+                assert!(drained_rx.await.is_err());
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn streaming_stop_preserves_nemotron_final_but_disowns_live_typing() {
+        for engine in [
+            crate::config::TranscriptionEngine::Nemotron,
+            crate::config::TranscriptionEngine::Soniox,
+        ] {
+            let mut config = Config {
+                engine,
+                ..Default::default()
+            };
+            config.audio.feedback.enabled = false;
+            config.vad.enabled = false;
+            let mut daemon = Daemon::new(config, None);
+            daemon.streaming_ptt_held = true;
+            let mut state = State::Streaming {
+                started_at: Instant::now(),
+                model_override: None,
+                partial_buffer: String::new(),
+                finalized_text: String::new(),
+                typed_chars: 0,
+                file_output_path: None,
+            };
+            let mut session = Some(StreamingSession::new());
+            let mut chain = Some(Vec::new());
+            daemon
+                .stop_active_recording(&mut state, &mut None, &mut session, &mut chain, &mut None)
+                .await;
+            assert!(!daemon.streaming_ptt_held);
+            let preserve = engine == crate::config::TranscriptionEngine::Nemotron;
+            assert_eq!(session.is_some(), preserve);
+            assert_eq!(chain.is_some(), preserve);
+        }
+    }
 
     /// #643: the panic-recovery arm in handle_transcription_result must fire
     /// only for a real panic. Both JoinError flavors are constructed for real

@@ -44,6 +44,7 @@ pub const SECTIONS: &[&str] = &[
     "Meeting",
     "Notifications",
     "OSD",
+    "Transcript Popup",
     "Status",
     "Advanced",
 ];
@@ -187,6 +188,7 @@ pub fn feature_compiled(feature: &str) -> bool {
         "cohere" => cfg!(feature = "cohere"),
         "openvino" => cfg!(feature = "openvino-whisper"),
         "granite" => cfg!(feature = "granite"),
+        "nemotron" => cfg!(feature = "granite"),
         _ => false,
     }
 }
@@ -291,6 +293,12 @@ pub const REPLACEMENTS_TABLE: &str = "text.replacements";
 // ---------------------------------------------------------------------------
 
 pub const CONFIG_KEYS: &[KeySpec] = &[
+    spec("transcript_popup.enabled", "transcript_popup", "enabled", KeyType::Bool, "Transcript Popup", "Enabled", "Preview text in a centered, non-focusing popup; does not change insertion."),
+    spec("transcript_popup.font_size", "transcript_popup", "font_size", KeyType::Float { min: 12.0, max: 72.0 }, "Transcript Popup", "Font size", "Dark transcript text size in pixels."),
+    spec("transcript_popup.opacity", "transcript_popup", "opacity", KeyType::Float { min: 0.0, max: 1.0 }, "Transcript Popup", "Opacity", "White background opacity."),
+    spec("transcript_popup.width_px", "transcript_popup", "width_px", KeyType::Int { min: 240, max: 1920 }, "Transcript Popup", "Width", "Maximum width, constrained to the output."),
+    spec("transcript_popup.height_px", "transcript_popup", "height_px", KeyType::Int { min: 80, max: 1080 }, "Transcript Popup", "Height", "Maximum height; long transcripts show the most recent wrapped lines."),
+    spec("transcript_popup.final_display_ms", "transcript_popup", "final_display_ms", KeyType::Int { min: 0, max: 60000 }, "Transcript Popup", "Final display milliseconds", "Time to keep the final transcript visible after release."),
     // -- Engine -------------------------------------------------------------
     spec(
         "engine",
@@ -687,6 +695,14 @@ pub const CONFIG_KEYS: &[KeySpec] = &[
     .for_engine("granite")
     .gated("granite"),
     // openvino
+    spec("nemotron.model", "nemotron", "model", KeyType::DynamicEnum { source: "models" }, "Engine", "Model", "Nemotron English streaming GGUF filename or path.")
+        .for_engine("nemotron").gated("nemotron"),
+    spec("nemotron.backend", "nemotron", "backend", closed(&["auto", "cpu", "cuda"]), "Engine", "Backend", "Native Nemotron compute backend.")
+        .for_engine("nemotron").gated("nemotron"),
+    spec("nemotron.streaming", "nemotron", "streaming", KeyType::Bool, "Engine", "Streaming", "Preview while recording; insert final text on release.")
+        .for_engine("nemotron").gated("nemotron"),
+    spec("nemotron.streaming_chunk_ms", "nemotron", "streaming_chunk_ms", KeyType::Int { min: 80, max: 1120 }, "Engine", "Chunk milliseconds", "Use 80, 160, 560, or 1120 ms; smaller chunks reduce lookahead.")
+        .for_engine("nemotron").gated("nemotron"),
     spec(
         "openvino.model",
         "openvino",
@@ -1695,6 +1711,12 @@ pub fn resolve(key: &str, cfg: &Config) -> Option<Json> {
 
     let v = match key {
         "engine" => json!(cfg.engine.name()),
+        "transcript_popup.enabled" => json!(cfg.transcript_popup.enabled),
+        "transcript_popup.font_size" => json!(cfg.transcript_popup.font_size),
+        "transcript_popup.opacity" => json!(cfg.transcript_popup.opacity),
+        "transcript_popup.width_px" => json!(cfg.transcript_popup.width_px),
+        "transcript_popup.height_px" => json!(cfg.transcript_popup.height_px),
+        "transcript_popup.final_display_ms" => json!(cfg.transcript_popup.final_display_ms),
 
         "whisper.model" => json!(cfg.whisper.model),
         "whisper.secondary_model" => opt_str(cfg.whisper.secondary_model.as_ref()),
@@ -1777,6 +1799,12 @@ pub fn resolve(key: &str, cfg: &Config) -> Option<Json> {
 
         "granite.model" => json!(gr().model),
         "granite.backend" => json!(gr().backend),
+        "nemotron.model" => json!(cfg.nemotron.clone().unwrap_or_default().model),
+        "nemotron.backend" => json!(cfg.nemotron.clone().unwrap_or_default().backend),
+        "nemotron.streaming" => json!(cfg.nemotron.clone().unwrap_or_default().streaming),
+        "nemotron.streaming_chunk_ms" => {
+            json!(cfg.nemotron.clone().unwrap_or_default().streaming_chunk_ms)
+        }
 
         "openvino.model" => json!(ov().model),
         "openvino.device" => json!(ov().device),

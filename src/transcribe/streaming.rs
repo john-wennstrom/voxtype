@@ -64,14 +64,25 @@ pub type SegmentId = u64;
 /// is not needed in normal use.
 #[derive(Debug)]
 pub enum StreamingEvent {
+    Preview {
+        text: String,
+        segment_id: SegmentId,
+    },
+
     /// In-progress text for a segment. May be revised by later partials
     /// or superseded by a `Final` event with the same `segment_id`.
-    Partial { text: String, segment_id: SegmentId },
+    Partial {
+        text: String,
+        segment_id: SegmentId,
+    },
 
     /// Committed text for a segment. The daemon's default output policy
     /// is to type only `Final` segments, so revision-style providers do
     /// not produce visible churn.
-    Final { text: String, segment_id: SegmentId },
+    Final {
+        text: String,
+        segment_id: SegmentId,
+    },
 
     /// Backspace `backspace` chars then commit `text`. Used by streaming
     /// backends (notably Soniox) that revise the tail of a previously
@@ -140,9 +151,40 @@ pub trait StreamingTranscriber: Send + Sync {
     ) -> Result<StreamHandle, TranscribeError>;
 }
 
+pub(crate) fn stream_events_ready(hotkey_held: bool, capture_active: bool) -> bool {
+    capture_active || !hotkey_held
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn preview_only_timeout_waits_for_release_before_final_output() {
+        let (sender, mut receiver) = mpsc::channel(2);
+        sender
+            .send(StreamingEvent::Final {
+                text: "Long recording".to_string(),
+                segment_id: 0,
+            })
+            .await
+            .unwrap();
+        sender.send(StreamingEvent::Ended).await.unwrap();
+        let held = true;
+        let capture_active = false;
+        let ready = tokio::select! {
+            event = receiver.recv(), if stream_events_ready(held, capture_active) => event,
+            else => None,
+        };
+        assert!(ready.is_none());
+        assert!(stream_events_ready(false, capture_active));
+        assert!(
+            matches!(receiver.recv().await, Some(StreamingEvent::Final { text, .. }) if text == "Long recording")
+        );
+        assert!(matches!(receiver.recv().await, Some(StreamingEvent::Ended)));
+        assert!(stream_events_ready(true, true));
+        assert!(stream_events_ready(false, true));
+    }
 
     #[test]
     fn streaming_event_partial_fields() {

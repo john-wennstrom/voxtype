@@ -59,6 +59,7 @@ Selects which speech-to-text engine to use for transcription.
 - `omnilingual` - FunASR Omnilingual CTC via ONNX Runtime (50+ languages)
 - `cohere` - Cohere Transcribe encoder-decoder via ONNX Runtime (#1 Open ASR Leaderboard, 14 languages, ~3 GB model)
 - `granite` - Native resident Granite TurboCTC via `transcribe.cpp` (this fork; requires `granite` or `granite-cuda`)
+- `nemotron` - Native English streaming Nemotron 0.6B GGUF (this fork; requires `nemotron` or `nemotron-cuda`)
 
 **Example:**
 ```toml
@@ -136,6 +137,81 @@ when the running source build includes Granite.
 
 See [Native Granite](USER_MANUAL.md#native-granite-fork) for shared-runtime builds
 and the fork-local Super+V configuration.
+
+---
+
+## [nemotron]
+
+Nemotron uses the resident `transcribe-cpp` 0.3.1 runtime. It previews cumulative
+text while recording and inserts one final transcript after release. Previews
+never type into the focused application, so hold-to-talk remains supported.
+
+```toml
+engine = "nemotron"
+
+[nemotron]
+model = "nemotron-speech-streaming-en-0.6b-Q8_0.gguf"
+backend = "cuda"
+streaming = true
+streaming_chunk_ms = 160
+```
+
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `model` | `nemotron-speech-streaming-en-0.6b-Q8_0.gguf` | GGUF filename in Voxtype's model directory or an explicit path; `~/` is expanded. |
+| `backend` | `auto` | `auto`, `cpu`, or `cuda`. Explicit CUDA requires `nemotron-cuda` and does not silently fall back. |
+| `streaming` | `true` | Preview during capture and finalize on release. `false` selects batch transcription. |
+| `streaming_chunk_ms` | `160` | One of `80`, `160`, `560`, or `1120`, matching trained right-context settings. These are audio chunk sizes, not guaranteed end-to-end latency. |
+
+CLI overrides are `--model`, `--nemotron-backend`, `--nemotron-streaming BOOL`, and
+`--nemotron-chunk-ms`. Environment equivalents are `VOXTYPE_NEMOTRON_MODEL`,
+`VOXTYPE_NEMOTRON_BACKEND`, `VOXTYPE_NEMOTRON_STREAMING`, and
+`VOXTYPE_NEMOTRON_CHUNK_MS`. `VOXTYPE_MODEL` also targets Nemotron when selected.
+CLI values take precedence over environment values and config.
+
+This engine is English-only. Supply the GGUF yourself; it is not registered in
+the production model CDN/download catalog. The local launcher reads the verified
+Q8 model under `models/`, or the path in `VOXTYPE_NEMOTRON_MODEL`.
+
+## [transcript_popup]
+
+Independent of `[osd]`, this opt-in popup shows Nemotron previews without
+focusing a window or accepting mouse input. Final text is inserted immediately
+when available after release; the display interval does not delay insertion.
+
+```toml
+[transcript_popup]
+enabled = true
+font_size = 28.0
+opacity = 1.0
+width_px = 760
+height_px = 280
+final_display_ms = 2000
+```
+
+| Field | Default | CLI | Environment |
+|-------|---------|-----|-------------|
+| `enabled` | `false` | `--transcript-popup BOOL` | `VOXTYPE_TRANSCRIPT_POPUP` |
+| `font_size` | `28.0` | `--transcript-popup-font-size` | `VOXTYPE_TRANSCRIPT_POPUP_FONT_SIZE` |
+| `opacity` | `0.8` | `--transcript-popup-opacity` | `VOXTYPE_TRANSCRIPT_POPUP_OPACITY` |
+| `width_px` | `760` | `--transcript-popup-width` | `VOXTYPE_TRANSCRIPT_POPUP_WIDTH` |
+| `height_px` | `280` | `--transcript-popup-height` | `VOXTYPE_TRANSCRIPT_POPUP_HEIGHT` |
+| `final_display_ms` | `2000` | `--transcript-popup-final-ms` | `VOXTYPE_TRANSCRIPT_POPUP_FINAL_MS` |
+
+The popup is centered with square corners, dark wrapping text, no border, and no
+shadow. Dimensions are constrained to the output; long transcripts show the most
+recent wrapped lines. Font sizes must be 12..72 pixels, opacity 0..1, width
+240..1920, height 80..1080, and the final display interval 0..60000 milliseconds.
+
+On layer-shell compositors, `opacity` controls the white background. GNOME uses
+an XWayland fallback with solid white, regardless of opacity. Both modes need
+the sibling `voxtype-osd-native` binary built with `osd-native`. Popup text lives
+in a private runtime file, replaced atomically and removed on final expiry,
+cancellation, or normal shutdown; it is not transcript history.
+
+Set `enabled = false`, `VOXTYPE_TRANSCRIPT_POPUP=false`, or
+`--transcript-popup false` to hide previews without changing transcription or
+final insertion. Restart the daemon after config-file changes.
 
 ---
 
@@ -2514,9 +2590,9 @@ urgency = "normal"  # "low" | "normal" | "critical"
 
 Delay in milliseconds between each typed character. Increase if characters are being dropped.
 
-On KDE Plasma, the `eitype` driver applies an effective minimum of 1 ms when
-this value is `0`. KWin can otherwise accept a zero-delay event burst while
-silently dropping the tail of a long dictation. Explicit nonzero values are
+On KDE Plasma and GNOME, the `eitype` driver applies an effective minimum of
+1 ms when this value is `0`. These desktops can otherwise accept a zero-delay
+event burst while silently dropping the tail of a long dictation. Nonzero values are
 preserved, and other output drivers and desktops keep the configured value.
 
 **Example:**

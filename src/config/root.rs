@@ -1,8 +1,8 @@
 use super::{
     AudioConfig, CohereConfig, DolphinConfig, GraniteConfig, HotkeyConfig, MeetingConfig,
-    MoonshineConfig, OmnilingualConfig, OpenVinoConfig, OutputConfig, ParaformerConfig,
-    ParakeetConfig, Profile, SenseVoiceConfig, SonioxConfig, StatusConfig, StreamingConfig,
-    TextConfig, TranscriptionEngine, VadConfig, WhisperConfig,
+    MoonshineConfig, NemotronConfig, OmnilingualConfig, OpenVinoConfig, OutputConfig,
+    ParaformerConfig, ParakeetConfig, Profile, SenseVoiceConfig, SonioxConfig, StatusConfig,
+    StreamingConfig, TextConfig, TranscriptionEngine, VadConfig, WhisperConfig,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -32,6 +32,9 @@ pub struct Config {
     /// Granite configuration, used when engine = "granite".
     #[serde(default)]
     pub granite: Option<GraniteConfig>,
+
+    #[serde(default)]
+    pub nemotron: Option<NemotronConfig>,
 
     /// Parakeet configuration (optional, only used when engine = "parakeet")
     #[serde(default)]
@@ -96,6 +99,9 @@ pub struct Config {
     #[serde(default)]
     pub osd: crate::osd::config::OsdConfig,
 
+    #[serde(default)]
+    pub transcript_popup: crate::osd::transcript::TranscriptPopupConfig,
+
     /// Meeting transcription configuration
     #[serde(default)]
     pub meeting: MeetingConfig,
@@ -123,6 +129,7 @@ impl Default for Config {
             output: OutputConfig::default(),
             engine: TranscriptionEngine::default(),
             granite: None,
+            nemotron: None,
             parakeet: None,
             moonshine: None,
             sensevoice: None,
@@ -137,6 +144,7 @@ impl Default for Config {
             vad: VadConfig::default(),
             status: StatusConfig::default(),
             osd: crate::osd::config::OsdConfig::default(),
+            transcript_popup: crate::osd::transcript::TranscriptPopupConfig::default(),
             meeting: MeetingConfig::default(),
             state_file: default_state_file(),
             profiles: HashMap::new(),
@@ -381,7 +389,7 @@ impl Config {
                 .unwrap_or(false),
             // Soniox is a cloud backend; nothing to load on demand.
             TranscriptionEngine::Soniox => false,
-            TranscriptionEngine::Granite => false,
+            TranscriptionEngine::Granite | TranscriptionEngine::Nemotron => false,
         }
     }
 
@@ -402,7 +410,7 @@ impl Config {
                 // A constrained detection set is not one language.
                 super::language::LanguageConfig::Multiple(_) => return None,
             },
-            TranscriptionEngine::Granite => "en",
+            TranscriptionEngine::Granite | TranscriptionEngine::Nemotron => "en",
             TranscriptionEngine::Cohere => self.cohere.as_ref().map(|c| c.language.as_str())?,
             TranscriptionEngine::SenseVoice => {
                 self.sensevoice.as_ref().map(|s| s.language.as_str())?
@@ -472,6 +480,11 @@ impl Config {
                 .as_ref()
                 .map(|settings| settings.model.as_str())
                 .unwrap_or("granite (not configured)"),
+            TranscriptionEngine::Nemotron => self
+                .nemotron
+                .as_ref()
+                .map(|settings| settings.model.as_str())
+                .unwrap_or("nemotron (not configured)"),
         }
     }
 

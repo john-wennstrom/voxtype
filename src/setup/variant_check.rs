@@ -89,7 +89,10 @@ pub fn detect_mismatch(config: &Config, inventory: &Inventory) -> Option<Variant
         .active_variant
         .map(|v| v.binary_name().to_string());
 
-    let remediation = if engine == TranscriptionEngine::Granite {
+    let remediation = if matches!(
+        engine,
+        TranscriptionEngine::Granite | TranscriptionEngine::Nemotron
+    ) {
         Remediation::Rebuild { feature }
     } else {
         match inventory.install_kind {

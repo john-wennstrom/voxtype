@@ -188,6 +188,42 @@ pub struct Cli {
     )]
     pub granite_backend: Option<String>,
 
+    /// Compute backend for native Nemotron inference
+    #[arg(long, value_parser = ["auto", "cpu", "cuda"], help_heading = "Nemotron")]
+    pub nemotron_backend: Option<String>,
+
+    /// Enable live Nemotron transcription, or false for batch transcription
+    #[arg(long, value_name = "BOOL", help_heading = "Nemotron")]
+    pub nemotron_streaming: Option<bool>,
+
+    /// Nemotron streaming audio chunk: 80, 160, 560, or 1120 milliseconds
+    #[arg(long, value_name = "MS", help_heading = "Nemotron")]
+    pub nemotron_chunk_ms: Option<u32>,
+
+    /// Show a centered live transcript popup (false disables preview only)
+    #[arg(long, value_name = "BOOL", help_heading = "Transcript Popup")]
+    pub transcript_popup: Option<bool>,
+
+    /// Transcript popup text size in pixels (12..72)
+    #[arg(long, value_name = "PX", help_heading = "Transcript Popup")]
+    pub transcript_popup_font_size: Option<f32>,
+
+    /// Transcript popup white background opacity (0..1)
+    #[arg(long, value_name = "ALPHA", help_heading = "Transcript Popup")]
+    pub transcript_popup_opacity: Option<f32>,
+
+    /// Transcript popup maximum width in pixels (240..1920)
+    #[arg(long, value_name = "PX", help_heading = "Transcript Popup")]
+    pub transcript_popup_width: Option<u32>,
+
+    /// Transcript popup maximum height in pixels (80..1080)
+    #[arg(long, value_name = "PX", help_heading = "Transcript Popup")]
+    pub transcript_popup_height: Option<u32>,
+
+    /// How long final text remains visible after release (milliseconds)
+    #[arg(long, value_name = "MS", help_heading = "Transcript Popup")]
+    pub transcript_popup_final_ms: Option<u64>,
+
     // -- Soniox --
     /// API key for Soniox (or use SONIOX_API_KEY env var)
     #[arg(

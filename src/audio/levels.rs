@@ -657,6 +657,47 @@ pub fn spawn_emitter_with_streaming_tap(
     })
 }
 
+/// Forward every captured chunk in order, buffering backend backlog without
+/// blocking capture. Level frames remain best-effort and independently droppable.
+pub fn spawn_lossless_streaming_tap(
+    mut chunk_rx: mpsc::Receiver<Vec<f32>>,
+    sink: Option<FrameSink>,
+    streaming_tx: mpsc::Sender<Vec<f32>>,
+    speech_tracker: Option<SpeechTracker>,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut pending = std::collections::VecDeque::new();
+        let mut capture_open = true;
+        let mut bucketer = LevelBucketer::new();
+        let mut frames = Vec::with_capacity(8);
+        while capture_open || !pending.is_empty() {
+            tokio::select! {
+                chunk = chunk_rx.recv(), if capture_open => {
+                    let Some(chunk) = chunk else {
+                        capture_open = false;
+                        continue;
+                    };
+                    frames.clear();
+                    bucketer.push(&chunk, &mut frames);
+                    for frame in frames.drain(..) {
+                        if let Some(tracker) = &speech_tracker {
+                            tracker.observe(frame.peak_dbfs).await;
+                        }
+                        if let Some(sink) = &sink {
+                            sink.publish(frame);
+                        }
+                    }
+                    pending.push_back(chunk);
+                }
+                permit = streaming_tx.reserve(), if !pending.is_empty() => {
+                    let Ok(permit) = permit else { break; };
+                    permit.send(pending.pop_front().expect("nonempty audio queue"));
+                }
+            }
+        }
+    })
+}
+
 /// Like [`spawn_emitter_with_streaming_tap`] but with no `FrameSink` to
 /// publish to — for silence tracking on a recording that has no OSD level
 /// hub running (OSD disabled or bind failed). Buckets samples purely to
@@ -706,6 +747,44 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
     use tempfile::TempDir;
     use tokio::io::AsyncReadExt;
+
+    #[tokio::test]
+    async fn nemotron_streaming_tap_retains_audio_when_backend_backs_up() {
+        let (frame_tx, _frame_rx) = mpsc::channel(1);
+        let sink = FrameSink {
+            inner: Arc::new(HubInner {
+                state: RwLock::new(Arc::new(HubState {
+                    broadcast_tx: frame_tx,
+                    subscriber_count: Mutex::new(0),
+                })),
+                socket_path: PathBuf::new(),
+            }),
+        };
+        let (capture_tx, capture_rx) = mpsc::channel(1);
+        let (stream_tx, mut stream_rx) = mpsc::channel(1);
+        let forwarder = spawn_lossless_streaming_tap(capture_rx, Some(sink), stream_tx, None);
+        let expected: Vec<Vec<f32>> = (0..96)
+            .map(|index| vec![index as f32 / 100.0; 160])
+            .collect();
+        let received = tokio::time::timeout(Duration::from_secs(5), async {
+            for chunk in &expected {
+                capture_tx.send(chunk.clone()).await.unwrap();
+            }
+            drop(capture_tx);
+            let mut received = Vec::new();
+            while let Some(chunk) = stream_rx.recv().await {
+                received.push(chunk);
+            }
+            forwarder.await.unwrap();
+            received
+        })
+        .await
+        .unwrap();
+        assert_eq!(received.len(), expected.len());
+        for (received, expected) in received.iter().zip(&expected) {
+            assert_eq!(received, expected);
+        }
+    }
 
     /// Global one-shot panic flag for the accept-loop fault injection
     /// test. We use a global because the panic check is inside

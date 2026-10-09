@@ -88,10 +88,10 @@ fn parse_backend(name: &str) -> Result<Backend, TranscribeError> {
     }
 }
 
-fn resolve_model_path(model: &str) -> Result<PathBuf, TranscribeError> {
+pub(super) fn resolve_model_path(model: &str) -> Result<PathBuf, TranscribeError> {
     if model.is_empty() {
         return Err(TranscribeError::ConfigError(
-            "granite.model must name a GGUF file".to_string(),
+            "Native model must name a GGUF file".to_string(),
         ));
     }
     if let Some(relative) = model.strip_prefix("~/") {

@@ -1429,6 +1429,7 @@ mod tests {
         events
             .iter()
             .map(|e| match e {
+                StreamingEvent::Preview { text, .. } => ("Preview", text.clone()),
                 StreamingEvent::Partial { text, .. } => ("Partial", text.clone()),
                 StreamingEvent::Final { text, .. } => ("Final", text.clone()),
                 StreamingEvent::Replace {

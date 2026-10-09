@@ -333,6 +333,39 @@ max_duration_secs = 120  # 2 minutes
 See [Native Granite](USER_MANUAL.md#native-granite-fork) for the full development
 workflow.
 
+### Native Nemotron And Transcript Popup (This Fork)
+
+- **Engine not compiled:** run `just build-nemotron`, or build with
+   `nemotron-cuda,osd-native` and the shared native runtime. Build both `voxtype`
+   and `voxtype-osd-native`; the daemon finds the popup binary beside itself.
+- **Model not found:** put the Q8 GGUF in the fork's `models/` directory or set
+   `VOXTYPE_NEMOTRON_MODEL`. This model is not in the production download catalog.
+- **Popup missing:** check `[transcript_popup] enabled = true` independently of
+   `[osd]`, ensure the native frontend is built, and check daemon warnings.
+   GNOME needs `DISPLAY` and XWayland; layer-shell compositors use `WAYLAND_DISPLAY`.
+- **No transparency on GNOME:** expected. The XWayland fallback uses solid
+   white to avoid driver-specific transparent-surface limitations.
+- **Text appears only after release:** ensure `nemotron.streaming = true`.
+   The popup is preview-only; application insertion always waits for the final.
+- **Wrong chunk setting:** only 80, 160, 560, and 1120 ms are trained context
+   choices. Smaller chunks do not guarantee a particular hardware latency.
+- **V repeats or recording will not stop:** keep the GNOME Super+V
+   `/usr/bin/true` reservation and run only one daemon, as for Granite.
+- **30-second timeout while holding Super+V:** capture has reached the sample
+   config's limit. Release the hotkey to insert the captured text; timeout must
+   not type while the chord is held. Set `audio.max_duration_secs` explicitly
+   for longer recordings.
+- **EIS fails after the screen locks:** a locked GNOME desktop invalidates
+   remote-input sessions. Unlock before dictating and restart the launcher if
+   portal authorization is stale. A lock screen can resemble a logout; check
+   the UTC journal for a compositor restart or GPU fault before assuming a
+   crash. The sRGB framebuffer warning is unrelated to EIS authorization.
+- **CUDA or shared-library failure:** use `backend = "cpu"` explicitly, or
+   check the CUDA driver and `TRANSCRIBE_DIR`. Explicit CUDA never silently falls
+   back, and the local binary still requires its shared GGML libraries.
+
+See [Native Nemotron Streaming](USER_MANUAL.md#native-nemotron-streaming-fork).
+
 ### "Model not found"
 
 **Cause:** Whisper model not downloaded or wrong path.
@@ -902,6 +935,12 @@ You can also enable it via CLI flag (`--wtype-shift-prefix`) or environment vari
 ### Characters dropped or garbled
 
 **Cause:** Typing too fast for the application.
+
+If the final transcript popup is complete but the application receives only
+the beginning, the loss is during insertion, not recognition. The `eitype`
+driver automatically uses at least 1 ms between key events on GNOME and KDE
+when `output.type_delay_ms` is `0`. Restart voxtype after rebuilding to use
+this safeguard. Applications that still drop characters may need more delay.
 
 **Solution:** Increase typing delay:
 ```toml

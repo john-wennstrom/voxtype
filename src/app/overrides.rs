@@ -68,6 +68,11 @@ pub(crate) fn apply_cli_overrides(config: &mut config::Config, cli: &Cli) -> Opt
                 .granite
                 .get_or_insert_with(config::GraniteConfig::default)
                 .model = model.clone();
+        } else if config.engine == config::TranscriptionEngine::Nemotron {
+            config
+                .nemotron
+                .get_or_insert_with(config::NemotronConfig::default)
+                .model = model.clone();
         } else if setup::model::is_valid_model(model) {
             config.whisper.model = model.clone();
         } else {
@@ -89,6 +94,42 @@ pub(crate) fn apply_cli_overrides(config: &mut config::Config, cli: &Cli) -> Opt
             .granite
             .get_or_insert_with(config::GraniteConfig::default)
             .backend = backend.clone();
+    }
+    if let Some(backend) = &cli.nemotron_backend {
+        config
+            .nemotron
+            .get_or_insert_with(config::NemotronConfig::default)
+            .backend = backend.clone();
+    }
+    if let Some(streaming) = cli.nemotron_streaming {
+        config
+            .nemotron
+            .get_or_insert_with(config::NemotronConfig::default)
+            .streaming = streaming;
+    }
+    if let Some(chunk_ms) = cli.nemotron_chunk_ms {
+        config
+            .nemotron
+            .get_or_insert_with(config::NemotronConfig::default)
+            .streaming_chunk_ms = chunk_ms;
+    }
+    if let Some(enabled) = cli.transcript_popup {
+        config.transcript_popup.enabled = enabled;
+    }
+    if let Some(size) = cli.transcript_popup_font_size {
+        config.transcript_popup.font_size = size;
+    }
+    if let Some(opacity) = cli.transcript_popup_opacity {
+        config.transcript_popup.opacity = opacity;
+    }
+    if let Some(width) = cli.transcript_popup_width {
+        config.transcript_popup.width_px = width;
+    }
+    if let Some(height) = cli.transcript_popup_height {
+        config.transcript_popup.height_px = height;
+    }
+    if let Some(duration) = cli.transcript_popup_final_ms {
+        config.transcript_popup.final_display_ms = duration;
     }
 
     // Hotkey overrides
@@ -336,6 +377,39 @@ pub(crate) fn apply_cli_overrides(config: &mut config::Config, cli: &Cli) -> Opt
 mod tests {
     use super::*;
     use clap::Parser;
+
+    #[test]
+    fn nemotron_cli_popup_off_keeps_streaming_and_hold_to_talk() {
+        let cli = Cli::try_parse_from([
+            "voxtype",
+            "--engine",
+            "nemotron",
+            "--model",
+            "/tmp/nemotron.gguf",
+            "--nemotron-backend",
+            "cuda",
+            "--nemotron-chunk-ms",
+            "80",
+            "--transcript-popup",
+            "false",
+        ])
+        .unwrap();
+        let mut settings = config::Config::default();
+        settings.transcript_popup.enabled = true;
+        apply_cli_overrides(&mut settings, &cli);
+        let native = settings.nemotron.as_ref().unwrap();
+        assert_eq!(native.model, "/tmp/nemotron.gguf");
+        assert_eq!(native.backend, "cuda");
+        assert_eq!(native.streaming_chunk_ms, 80);
+        assert!(native.streaming);
+        assert!(!settings.transcript_popup.enabled);
+        assert!(!settings.streaming_active());
+        assert!(!settings.output.auto_submit);
+        assert_eq!(
+            settings.whisper.model,
+            config::WhisperConfig::default().model
+        );
+    }
 
     #[test]
     fn granite_cli_overrides_select_engine_before_model() {

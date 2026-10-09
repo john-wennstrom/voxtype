@@ -6,6 +6,7 @@ mod cohere;
 mod dolphin;
 mod granite;
 mod moonshine;
+mod nemotron;
 mod omnilingual;
 mod openvino;
 mod paraformer;
@@ -17,6 +18,7 @@ pub use cohere::CohereConfig;
 pub use dolphin::DolphinConfig;
 pub use granite::GraniteConfig;
 pub use moonshine::MoonshineConfig;
+pub use nemotron::NemotronConfig;
 pub use omnilingual::OmnilingualConfig;
 pub use openvino::OpenVinoConfig;
 pub use paraformer::ParaformerConfig;
@@ -74,6 +76,7 @@ pub enum TranscriptionEngine {
     Soniox,
     /// Use Granite TurboCTC via transcribe.cpp.
     Granite,
+    Nemotron,
 }
 
 impl TranscriptionEngine {
@@ -123,6 +126,16 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use strum::IntoEnumIterator;
+
+    #[test]
+    fn nemotron_preview_preserves_hold_to_talk() {
+        let config: Config =
+            toml::from_str("engine = \"nemotron\"\n[nemotron]\nbackend = \"cuda\"").unwrap();
+        assert_eq!(config.engine, TranscriptionEngine::Nemotron);
+        assert!(config.nemotron.as_ref().unwrap().streaming);
+        assert!(!config.streaming_active());
+        assert_eq!(config.active_language(), Some("en"));
+    }
 
     /// Pin `crate::cli::ENGINE_NAMES_CSV` to the `TranscriptionEngine` enum.
     ///

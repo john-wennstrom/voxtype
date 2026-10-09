@@ -132,6 +132,7 @@ wgpu = { version = "29", optional = true, default-features = false, features = [
 egui = { version = "0.34", optional = true }
 egui-wgpu = { version = "0.34", optional = true, default-features = false }
 raw-window-handle = { version = "0.6", optional = true }
+winit = { version = "0.30", optional = true, default-features = false, features = ["x11", "rwh_06"] }
 pollster = { version = "0.4", optional = true }
 bytemuck = { version = "1", optional = true }
 
@@ -172,6 +173,8 @@ zbus = { version = "4", default-features = false, features = ["tokio"] }
 default = []
 granite = ["dep:transcribe-cpp"]
 granite-cuda = ["granite", "transcribe-cpp/cuda"]
+nemotron = ["granite"]
+nemotron-cuda = ["nemotron", "granite-cuda"]
 # OSD frontends. Each binary is gated on its own feature so users can
 # build only the rendering stack they need. Real GUI deps land in
 # Commits 4a/4b; the lists below grow then.
@@ -187,6 +190,7 @@ osd-native = [
     "dep:egui",
     "dep:egui-wgpu",
     "dep:raw-window-handle",
+    "dep:winit",
     "dep:pollster",
     "dep:bytemuck",
 ]

@@ -1,7 +1,7 @@
 use super::parse::parse_config_salvaging;
 use super::{
-    Config, GraniteConfig, LanguageConfig, OpenVinoConfig, OutputMode, SonioxConfig,
-    TranscriptionEngine,
+    Config, GraniteConfig, LanguageConfig, NemotronConfig, OpenVinoConfig, OutputMode,
+    SonioxConfig, TranscriptionEngine,
 };
 use crate::error::VoxtypeError;
 use std::path::{Path, PathBuf};
@@ -91,6 +91,11 @@ pub fn load_config(path: Option<&Path>) -> Result<Config, VoxtypeError> {
                 .granite
                 .get_or_insert_with(GraniteConfig::default)
                 .model = model;
+        } else if config.engine == TranscriptionEngine::Nemotron {
+            config
+                .nemotron
+                .get_or_insert_with(NemotronConfig::default)
+                .model = model;
         } else {
             config.whisper.model = model;
         }
@@ -106,6 +111,60 @@ pub fn load_config(path: Option<&Path>) -> Result<Config, VoxtypeError> {
             .granite
             .get_or_insert_with(GraniteConfig::default)
             .backend = backend;
+    }
+    if let Ok(model) = std::env::var("VOXTYPE_NEMOTRON_MODEL") {
+        config
+            .nemotron
+            .get_or_insert_with(NemotronConfig::default)
+            .model = model;
+    }
+    if let Ok(backend) = std::env::var("VOXTYPE_NEMOTRON_BACKEND") {
+        config
+            .nemotron
+            .get_or_insert_with(NemotronConfig::default)
+            .backend = backend;
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_NEMOTRON_STREAMING") {
+        config
+            .nemotron
+            .get_or_insert_with(NemotronConfig::default)
+            .streaming = parse_bool_env(&value);
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_NEMOTRON_CHUNK_MS") {
+        if let Ok(chunk_ms) = value.parse() {
+            config
+                .nemotron
+                .get_or_insert_with(NemotronConfig::default)
+                .streaming_chunk_ms = chunk_ms;
+        }
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_TRANSCRIPT_POPUP") {
+        config.transcript_popup.enabled = parse_bool_env(&value);
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_TRANSCRIPT_POPUP_FONT_SIZE") {
+        if let Ok(size) = value.parse() {
+            config.transcript_popup.font_size = size;
+        }
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_TRANSCRIPT_POPUP_OPACITY") {
+        if let Ok(opacity) = value.parse() {
+            config.transcript_popup.opacity = opacity;
+        }
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_TRANSCRIPT_POPUP_WIDTH") {
+        if let Ok(width) = value.parse() {
+            config.transcript_popup.width_px = width;
+        }
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_TRANSCRIPT_POPUP_HEIGHT") {
+        if let Ok(height) = value.parse() {
+            config.transcript_popup.height_px = height;
+        }
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_TRANSCRIPT_POPUP_FINAL_MS") {
+        if let Ok(duration) = value.parse() {
+            config.transcript_popup.final_display_ms = duration;
+        }
     }
     if let Ok(lang) = std::env::var("VOXTYPE_LANGUAGE") {
         config.whisper.language = LanguageConfig::from_comma_separated(&lang);

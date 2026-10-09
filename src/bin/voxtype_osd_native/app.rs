@@ -42,6 +42,7 @@ use smithay_client_toolkit::{
 use voxtype::audio::levels::AudioFrame;
 use voxtype::osd::config::{OsdConfig, OsdPosition};
 use voxtype::osd::ipc::FrameRing;
+use voxtype::osd::transcript::{now_ms, TranscriptSnapshot};
 use voxtype::osd::visual::{
     peak_meter_fraction, project_envelope, EnvelopeColumn, MeterZone, Palette, PeakHold,
 };
@@ -56,6 +57,8 @@ pub struct SharedState {
     pub last_frame_at: Arc<Mutex<Option<Instant>>>,
     pub palette: Palette,
     pub config: OsdConfig,
+    pub transcript_path: Option<std::path::PathBuf>,
+    pub transcript: Arc<Mutex<Option<TranscriptSnapshot>>>,
 }
 
 /// How long to keep the surface alive after the last frame arrived, before
@@ -84,6 +87,7 @@ pub struct App {
 
     shared: SharedState,
     surface: Option<RenderSurface>,
+    transcript_dirty: bool,
 }
 
 /// All state tied to the live layer-shell surface. Dropped (via
@@ -147,6 +151,7 @@ pub fn run(
         conn: conn.clone(),
         shared,
         surface: None,
+        transcript_dirty: false,
     };
 
     // Wake on each incoming audio frame: create the surface if needed,
@@ -189,6 +194,36 @@ impl App {
     }
 
     fn tick(&mut self) {
+        if let Some(path) = &self.shared.transcript_path {
+            let snapshot =
+                TranscriptSnapshot::read(path).filter(|value| value.visible_at(now_ms()));
+            let mut current = self.shared.transcript.lock().expect("transcript poisoned");
+            self.transcript_dirty |= current.as_ref().map(|value| &value.text)
+                != snapshot.as_ref().map(|value| &value.text);
+            *current = snapshot;
+            let visible = current.is_some();
+            if let Some(value) = current.as_ref() {
+                self.shared.config.width_px = value.settings.width_px;
+                self.shared.config.height_px = value.settings.height_px;
+            }
+            drop(current);
+            if !visible {
+                self.tear_down_surface();
+            } else {
+                if self.surface.is_none() {
+                    if let Err(error) = self.create_surface() {
+                        tracing::warn!("Failed to create transcript popup: {error:#}");
+                        return;
+                    }
+                }
+                if self.transcript_dirty {
+                    if let Err(error) = self.render_frame() {
+                        tracing::warn!("Transcript render failed: {error:#}");
+                    }
+                }
+            }
+            return;
+        }
         let last_frame = self.shared.last_frame_at.lock().ok().and_then(|g| *g);
         let idle = match last_frame {
             Some(t) => t.elapsed().as_secs_f32() >= IDLE_TEARDOWN_SECS,
@@ -216,15 +251,47 @@ impl App {
             &self.qh,
             wl_surface.clone(),
             Layer::Overlay,
-            Some("voxtype-osd"),
+            Some(if self.shared.transcript_path.is_some() {
+                "voxtype-transcript"
+            } else {
+                "voxtype-osd"
+            }),
             None,
         );
 
+        if self.shared.transcript_path.is_some() {
+            if let Some((width, height)) = self
+                .output_state
+                .outputs()
+                .filter_map(|output| {
+                    self.output_state
+                        .info(&output)
+                        .and_then(|info| info.logical_size)
+                })
+                .min()
+            {
+                self.shared.config.width_px = self
+                    .shared
+                    .config
+                    .width_px
+                    .min((width.max(1) as u32).saturating_sub(48).max(1));
+                self.shared.config.height_px = self
+                    .shared
+                    .config
+                    .height_px
+                    .min((height.max(1) as u32).saturating_sub(48).max(1));
+            }
+        }
         let cfg = &self.shared.config;
         let (anchor, margin_top, margin_bottom, margin_left, margin_right) =
             position_to_anchor_and_margins(cfg.position, cfg.margin_px as i32);
-        layer.set_anchor(anchor);
-        layer.set_margin(margin_top, margin_right, margin_bottom, margin_left);
+        if self.shared.transcript_path.is_some() {
+            layer.set_anchor(Anchor::empty());
+            layer.set_margin(0, 0, 0, 0);
+        } else {
+            layer.set_anchor(anchor);
+            layer.set_margin(margin_top, margin_right, margin_bottom, margin_left);
+        }
         layer.set_size(cfg.width_px, cfg.height_px);
         layer.set_keyboard_interactivity(KeyboardInteractivity::None);
         layer.set_exclusive_zone(0);
@@ -415,17 +482,27 @@ impl App {
         let width_px = rs.width;
         let height_px = rs.height;
         let gain = self.shared.config.waveform_gain;
+        let transcript = self
+            .shared
+            .transcript
+            .lock()
+            .ok()
+            .and_then(|value| value.clone());
         let full_output = rs.egui_ctx.run_ui(raw_input, |ui| {
-            draw_ui(
-                ui,
-                width_px,
-                height_px,
-                &palette,
-                &envelope_cols,
-                peak_dbfs,
-                held_dbfs,
-                gain,
-            );
+            if let Some(snapshot) = &transcript {
+                draw_transcript(ui, width_px, height_px, snapshot);
+            } else {
+                draw_ui(
+                    ui,
+                    width_px,
+                    height_px,
+                    &palette,
+                    &envelope_cols,
+                    peak_dbfs,
+                    held_dbfs,
+                    gain,
+                );
+            }
         });
 
         let primitives = rs
@@ -457,7 +534,16 @@ impl App {
         );
 
         {
-            let bg = palette.background;
+            let bg = if transcript.is_some() {
+                voxtype::osd::visual::Color {
+                    r: 0.0,
+                    g: 0.0,
+                    b: 0.0,
+                    a: 0.0,
+                }
+            } else {
+                palette.background
+            };
             let mut rpass = encoder
                 .begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("voxtype-osd-pass"),
@@ -494,7 +580,89 @@ impl App {
         rs.wl_surface.frame(&self.qh, rs.wl_surface.clone());
         rs.frame_pending = true;
         surface_texture.present();
+        self.transcript_dirty = false;
         Ok(())
+    }
+}
+
+pub(crate) fn draw_transcript(
+    ui: &mut egui::Ui,
+    width: u32,
+    height: u32,
+    snapshot: &TranscriptSnapshot,
+) {
+    let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width as f32, height as f32));
+    let painter = ui.painter();
+    painter.rect_filled(
+        rect,
+        0.0,
+        egui::Color32::from_white_alpha((snapshot.settings.opacity * 255.0).round() as u8),
+    );
+    let inner = rect.shrink(24.0);
+    let galley = painter.layout(
+        snapshot.text.clone(),
+        egui::FontId::proportional(snapshot.settings.font_size),
+        egui::Color32::from_rgb(24, 24, 24),
+        inner.width().max(1.0),
+    );
+    let offset = (galley.size().y - inner.height()).max(0.0);
+    painter.with_clip_rect(inner).galley(
+        inner.left_top() - egui::vec2(0.0, offset),
+        galley,
+        egui::Color32::from_rgb(24, 24, 24),
+    );
+}
+
+#[cfg(test)]
+mod transcript_tests {
+    use super::*;
+    use voxtype::osd::transcript::TranscriptPopupConfig;
+
+    #[test]
+    fn transcript_popup_wraps_with_square_translucent_background() {
+        for width in [320, 760] {
+            let snapshot = TranscriptSnapshot {
+                text: "A live transcript wraps without changing the focused window. ".repeat(12),
+                recording: true,
+                expires_at_ms: 0,
+                settings: TranscriptPopupConfig {
+                    enabled: true,
+                    ..Default::default()
+                },
+            };
+            let context = egui::Context::default();
+            let output = context.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(width as f32, 280.0),
+                    )),
+                    ..Default::default()
+                },
+                |ui| draw_transcript(ui, width, 280, &snapshot),
+            );
+            let background = output
+                .shapes
+                .iter()
+                .find_map(|shape| match &shape.shape {
+                    egui::Shape::Rect(rectangle) => Some(rectangle),
+                    _ => None,
+                })
+                .unwrap();
+            assert_eq!(background.corner_radius, egui::CornerRadius::ZERO);
+            assert_eq!(background.stroke.width, 0.0);
+            assert_eq!(background.fill.a(), 204);
+            let text = output
+                .shapes
+                .iter()
+                .find_map(|shape| match &shape.shape {
+                    egui::Shape::Text(text) => Some(text),
+                    _ => None,
+                })
+                .unwrap();
+            assert!(text.galley.rows.len() > 1);
+            assert!(text.galley.size().x <= width as f32 - 48.0);
+        }
     }
 }
 

@@ -40,34 +40,42 @@ const HEALTHY_RUN: Duration = Duration::from_secs(60);
 const RAPID_FAIL_THRESHOLD: u32 = 3;
 const RAPID_FAIL_WINDOW: Duration = Duration::from_secs(5);
 
-fn resolve_osd_binary() -> PathBuf {
+fn resolve_osd_binary(binary: &str) -> PathBuf {
     if let Ok(current) = std::env::current_exe() {
         if let Some(dir) = current.parent() {
-            let sibling = dir.join(OSD_BINARY);
+            let sibling = dir.join(binary);
             if sibling.is_file() {
                 return sibling;
             }
         }
     }
-    PathBuf::from(OSD_BINARY)
+    PathBuf::from(binary)
 }
 
 /// Spawn a tokio task that supervises `voxtype-osd`. The returned handle's
 /// drop kills the child via `kill_on_drop`. Holding the handle keeps the
 /// supervisor alive for the daemon's lifetime.
 pub fn spawn() -> JoinHandle<()> {
-    tokio::spawn(supervise())
+    tokio::spawn(supervise(OSD_BINARY, Vec::new()))
 }
 
-async fn supervise() {
+pub fn spawn_transcript(path: PathBuf) -> JoinHandle<()> {
+    tokio::spawn(supervise(
+        "voxtype-osd-native",
+        vec!["--transcript-state".into(), path.into_os_string()],
+    ))
+}
+
+async fn supervise(binary: &'static str, arguments: Vec<std::ffi::OsString>) {
     let mut backoff = RESTART_MIN;
     let mut rapid_fails: u32 = 0;
     let mut rapid_window_start = Instant::now();
 
     loop {
         let started = Instant::now();
-        let osd_binary = resolve_osd_binary();
+        let osd_binary = resolve_osd_binary(binary);
         let mut cmd = Command::new(&osd_binary);
+        cmd.args(&arguments);
         cmd.kill_on_drop(true);
         // Tell the dispatcher this child is supervised. The dispatcher
         // uses this to suppress qs's daemonize fork when handing off to

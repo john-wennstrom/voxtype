@@ -18,4 +18,5 @@ pub mod ipc;
 pub mod style;
 pub mod supervisor;
 pub mod theme;
+pub mod transcript;
 pub mod visual;

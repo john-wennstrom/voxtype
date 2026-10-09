@@ -20,6 +20,7 @@
 //! "exits cleanly on SIGTERM".
 
 mod app;
+mod x11;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -33,6 +34,7 @@ use voxtype::audio::levels::{AudioFrame, FRAME_HZ};
 use voxtype::osd::config::OsdConfig;
 use voxtype::osd::ipc::{resolve_socket_path, run_ipc_loop, FrameRing};
 use voxtype::osd::theme::ThemeWatcher;
+use voxtype::osd::transcript::TranscriptSnapshot;
 use voxtype::osd::visual::PeakHold;
 
 use crate::app::SharedState;
@@ -48,6 +50,10 @@ struct Args {
     /// `~/.config/voxtype/config.toml`. Only the `[osd]` section is read.
     #[arg(long, env = "VOXTYPE_CONFIG")]
     config: Option<PathBuf>,
+
+    /// Display live text from the daemon's private transcript state instead of audio levels.
+    #[arg(long)]
+    transcript_state: Option<PathBuf>,
 
     /// Path to the audio-frame Unix socket. Defaults to
     /// `$XDG_RUNTIME_DIR/voxtype/audio.sock`.
@@ -141,6 +147,9 @@ fn main() -> anyhow::Result<()> {
         osd_config.waveform_gain = g;
     }
 
+    if args.transcript_state.is_some() {
+        osd_config.enabled = true;
+    }
     if !osd_config.enabled {
         tracing::info!("OSD disabled in config; exiting");
         return Ok(());
@@ -164,6 +173,8 @@ fn main() -> anyhow::Result<()> {
         last_frame_at: Arc::new(Mutex::new(None)),
         palette,
         config: osd_config,
+        transcript_path: args.transcript_state.clone(),
+        transcript: Arc::new(Mutex::new(None::<TranscriptSnapshot>)),
     };
 
     // Set up the wakeup channel so the IPC thread can ping the main loop on
@@ -177,21 +188,32 @@ fn main() -> anyhow::Result<()> {
     let log_every = args.log_every;
     let reconnect_secs = args.reconnect_secs;
     let frame_ping_for_ipc = frame_ping.clone();
-    let _ipc_thread = thread::Builder::new()
-        .name("voxtype-osd-ipc".into())
-        .spawn(move || {
-            ipc_thread_main(
-                ipc_shared,
-                socket_path,
-                reconnect_secs,
-                log_every,
-                frame_ping_for_ipc,
-            );
-        })
-        .context("spawn IPC thread")?;
+    if args.transcript_state.is_none() {
+        thread::Builder::new()
+            .name("voxtype-osd-ipc".into())
+            .spawn(move || {
+                ipc_thread_main(
+                    ipc_shared,
+                    socket_path,
+                    reconnect_secs,
+                    log_every,
+                    frame_ping_for_ipc,
+                );
+            })
+            .context("spawn IPC thread")?;
+    }
 
     // Run the Wayland + render event loop on the main thread.
-    app::run(shared, frame_ping_source)
+    match app::run(shared.clone(), frame_ping_source) {
+        Err(error)
+            if args.transcript_state.is_some()
+                && format!("{error:#}").contains("wlr-layer-shell protocol unavailable") =>
+        {
+            tracing::info!("Layer-shell unavailable; using non-focusing XWayland transcript popup");
+            x11::run(shared)
+        }
+        result => result,
+    }
 }
 
 /// Entry point of the IPC thread. Owns a single-threaded Tokio runtime,

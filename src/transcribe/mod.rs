@@ -16,6 +16,8 @@
 pub mod cli;
 #[cfg(feature = "granite")]
 pub mod granite;
+#[cfg(feature = "granite")]
+pub mod nemotron;
 #[cfg(feature = "parakeet")]
 pub mod parakeet_streaming;
 pub mod remote;
@@ -163,6 +165,14 @@ pub trait Transcriber: Send + Sync {
 /// Factory function to create transcriber based on configured engine
 pub fn create_transcriber(config: &Config) -> Result<Box<dyn Transcriber>, TranscribeError> {
     match config.engine {
+        #[cfg(feature = "granite")]
+        TranscriptionEngine::Nemotron => Ok(Box::new(nemotron::NemotronTranscriber::new(
+            &config.nemotron.clone().unwrap_or_default(),
+        )?)),
+        #[cfg(not(feature = "granite"))]
+        TranscriptionEngine::Nemotron => Err(TranscribeError::InitFailed(
+            "Nemotron requires a build with --features nemotron or nemotron-cuda".to_string(),
+        )),
         #[cfg(feature = "granite")]
         TranscriptionEngine::Granite => {
             let settings = config.granite.as_ref().ok_or_else(|| {

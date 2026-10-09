@@ -13,21 +13,20 @@ use crate::error::OutputError;
 use std::process::Stdio;
 use tokio::process::Command;
 
-const KDE_MIN_TYPE_DELAY_MS: u32 = 1;
+const EI_MIN_TYPE_DELAY_MS: u32 = 1;
 
-/// KDE can acknowledge a zero-delay eitype process even when KWin has dropped
-/// the tail of a large key-event burst. Keep explicit pacing choices intact,
-/// but use the smallest working delay when KDE users leave the generic delay
-/// at its default of zero.
+/// KDE and GNOME can acknowledge a zero-delay eitype process despite dropping
+/// the tail of a large key-event burst. Preserve larger configured delays,
+/// but pace these desktops when the generic delay remains at zero.
 fn effective_type_delay_ms(configured_delay_ms: u32, current_desktop: Option<&str>) -> u32 {
-    let is_kde = current_desktop.is_some_and(|desktop| {
-        desktop
-            .split(':')
-            .any(|component| component.eq_ignore_ascii_case("kde"))
+    let needs_pacing = current_desktop.is_some_and(|desktop| {
+        desktop.split(':').any(|component| {
+            component.eq_ignore_ascii_case("kde") || component.eq_ignore_ascii_case("gnome")
+        })
     });
 
-    if is_kde && configured_delay_ms == 0 {
-        KDE_MIN_TYPE_DELAY_MS
+    if needs_pacing && configured_delay_ms == 0 {
+        EI_MIN_TYPE_DELAY_MS
     } else {
         configured_delay_ms
     }
@@ -76,7 +75,7 @@ impl EitypeOutput {
             tracing::debug!(
                 configured_delay_ms = type_delay_ms,
                 effective_delay_ms = effective_type_delay_ms,
-                "Applying safe eitype pacing on KDE"
+                "Applying safe eitype pacing"
             );
         }
         Self {
@@ -276,8 +275,20 @@ mod tests {
     }
 
     #[test]
+    fn test_gnome_zero_delay_uses_safe_minimum() {
+        for desktop in ["GNOME", "ubuntu:GNOME", "gnome", "GNOME:GNOME-Classic"] {
+            assert_eq!(effective_type_delay_ms(0, Some(desktop)), 1);
+        }
+    }
+
+    #[test]
+    fn test_gnome_explicit_delay_is_preserved() {
+        assert_eq!(effective_type_delay_ms(2, Some("ubuntu:GNOME")), 2);
+    }
+
+    #[test]
     fn test_other_desktops_keep_zero_delay() {
-        assert_eq!(effective_type_delay_ms(0, Some("GNOME")), 0);
+        assert_eq!(effective_type_delay_ms(0, Some("sway")), 0);
         assert_eq!(effective_type_delay_ms(0, None), 0);
     }
 
