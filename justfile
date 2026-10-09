@@ -2,10 +2,10 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 
 root := justfile_directory()
 toolchain := env("VOXTYPE_RUST_TOOLCHAIN", "nightly-2026-08-22")
-export TRANSCRIBE_DIR := env("TRANSCRIBE_DIR", root / "../target/native-cuda")
+export TRANSCRIBE_DIR := env("TRANSCRIBE_DIR", root / "target/native-cuda")
 export CARGO_TARGET_DIR := root / "target/granite-cuda"
 export RUSTFLAGS := "-C link-arg=-Wl,-rpath," + TRANSCRIBE_DIR / "lib"
-export PATH := root / "../target/tools/cmake-3.31.6-linux-x86_64/bin" + ":" + env("PATH")
+export PATH := root / "target/tools/cmake-3.31.6-linux-x86_64/bin" + ":" + env("PATH")
 
 default: build
     bash scripts/run-granite.sh

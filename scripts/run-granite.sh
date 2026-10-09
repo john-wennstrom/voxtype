@@ -2,7 +2,7 @@
 set -euo pipefail
 
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-native=${TRANSCRIBE_DIR:-"$root/../target/native-cuda"}
+native=${TRANSCRIBE_DIR:-"$root/target/native-cuda"}
 binary=${VOXTYPE_GRANITE_BINARY:-"$root/target/granite-cuda/debug/voxtype"}
 config=${VOXTYPE_GRANITE_CONFIG:-"$root/config/granite.toml"}
 filename=granite-speech-5.0-470m-turboctc-Q8_0.gguf
