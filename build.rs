@@ -23,6 +23,12 @@ mod cli;
 use cli::Cli;
 
 fn main() -> Result<(), Error> {
+    if env::var_os("CARGO_FEATURE_GRANITE").is_some()
+        && env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("linux")
+    {
+        println!("cargo:rustc-link-arg=-Wl,--exclude-libs,ALL");
+    }
+
     // Before the man-page early return: the version must be stamped for
     // every build, not just release builds.
     expose_build_version();

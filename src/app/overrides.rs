@@ -49,8 +49,26 @@ pub(crate) fn apply_cli_overrides(config: &mut config::Config, cli: &Cli) -> Opt
     if let Some(delay) = cli.restore_clipboard_delay_ms {
         config.output.restore_clipboard_delay_ms = delay;
     }
+    if let Some(ref engine) = cli.engine {
+        match engine.parse::<config::TranscriptionEngine>() {
+            Ok(engine) => config.engine = engine,
+            Err(_) => {
+                eprintln!(
+                    "Error: Invalid engine '{}'. Valid options: {}",
+                    engine,
+                    voxtype::cli::ENGINE_NAMES_CSV
+                );
+                std::process::exit(1);
+            }
+        }
+    }
     if let Some(ref model) = cli.model {
-        if setup::model::is_valid_model(model) {
+        if config.engine == config::TranscriptionEngine::Granite {
+            config
+                .granite
+                .get_or_insert_with(config::GraniteConfig::default)
+                .model = model.clone();
+        } else if setup::model::is_valid_model(model) {
             config.whisper.model = model.clone();
         } else {
             let default_model = &config.whisper.model;
@@ -66,18 +84,11 @@ pub(crate) fn apply_cli_overrides(config: &mut config::Config, cli: &Cli) -> Opt
             );
         }
     }
-    if let Some(ref engine) = cli.engine {
-        match engine.parse::<config::TranscriptionEngine>() {
-            Ok(e) => config.engine = e,
-            Err(_) => {
-                eprintln!(
-                    "Error: Invalid engine '{}'. Valid options: {}",
-                    engine,
-                    voxtype::cli::ENGINE_NAMES_CSV
-                );
-                std::process::exit(1);
-            }
-        }
+    if let Some(ref backend) = cli.granite_backend {
+        config
+            .granite
+            .get_or_insert_with(config::GraniteConfig::default)
+            .backend = backend.clone();
     }
 
     // Hotkey overrides
@@ -319,4 +330,34 @@ pub(crate) fn apply_cli_overrides(config: &mut config::Config, cli: &Cli) -> Opt
     }
 
     top_level_model
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn granite_cli_overrides_select_engine_before_model() {
+        let cli = Cli::try_parse_from([
+            "voxtype",
+            "--engine",
+            "granite",
+            "--model",
+            "/tmp/granite.gguf",
+            "--granite-backend",
+            "cpu",
+        ])
+        .unwrap();
+        let mut settings = config::Config::default();
+        apply_cli_overrides(&mut settings, &cli);
+        assert_eq!(settings.engine, config::TranscriptionEngine::Granite);
+        let granite = settings.granite.unwrap();
+        assert_eq!(granite.model, "/tmp/granite.gguf");
+        assert_eq!(granite.backend, "cpu");
+        assert_eq!(
+            settings.whisper.model,
+            config::WhisperConfig::default().model
+        );
+    }
 }

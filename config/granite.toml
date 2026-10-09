@@ -1,0 +1,33 @@
+engine = "granite"
+state_file = "auto"
+
+[granite]
+model = "granite-speech-5.0-470m-turboctc-Q8_0.gguf"
+backend = "cuda"
+
+[hotkey]
+enabled = true
+key = "EVTEST_47"
+modifiers = ["LEFTMETA"]
+mode = "push_to_talk"
+
+[audio]
+device = "default"
+sample_rate = 16000
+max_duration_secs = 30
+
+[output]
+mode = "type"
+driver_order = ["eitype"]
+fallback_to_clipboard = false
+pre_type_delay_ms = 200
+auto_submit = false
+append_text = " "
+
+[output.notification]
+on_recording_start = true
+on_recording_stop = true
+on_transcription = false
+
+[osd]
+enabled = false

@@ -97,6 +97,13 @@ pub(crate) async fn show_config(config: &config::Config) -> anyhow::Result<()> {
     println!("\n[engine]");
     println!("  engine = {:?}", config.engine);
 
+    if let Some(ref granite) = config.granite {
+        println!("\n[granite]");
+        println!("  model = {:?}", granite.model);
+        println!("  backend = {:?}", granite.backend);
+        println!("  compiled = {}", cfg!(feature = "granite"));
+    }
+
     println!("\n[whisper]");
     println!("  model = {:?}", config.whisper.model);
     println!("  language = {:?}", config.whisper.language);

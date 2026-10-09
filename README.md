@@ -1,5 +1,9 @@
 # Voxtype
 
+This fork adds an experimental resident **Granite TurboCTC** engine through
+`transcribe.cpp`, without the Granitevox HTTP bridge. See
+[Native Granite](docs/USER_MANUAL.md#native-granite-fork) for the development workflow.
+
 [![Voxtype - Voice to Text for Linux](website/images/og-preview.png)](https://voxtype.io)
 
 **[voxtype.io](https://voxtype.io)**

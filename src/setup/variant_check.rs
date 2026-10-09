@@ -89,15 +89,19 @@ pub fn detect_mismatch(config: &Config, inventory: &Inventory) -> Option<Variant
         .active_variant
         .map(|v| v.binary_name().to_string());
 
-    let remediation = match inventory.install_kind {
-        crate::setup::binary::InstallKind::Source => Remediation::Rebuild { feature },
-        // Package installs: recommend the hardware-appropriate ONNX variant.
-        // The Inventory's recommendation pass already picked the best one
-        // (CUDA-12/13 vs MIGraphX vs AVX-512 vs AVX2) given the detected
-        // CPU/GPU.
-        _ => Remediation::SwitchToVariant {
-            target: inventory.recommendation.onnx,
-        },
+    let remediation = if engine == TranscriptionEngine::Granite {
+        Remediation::Rebuild { feature }
+    } else {
+        match inventory.install_kind {
+            crate::setup::binary::InstallKind::Source => Remediation::Rebuild { feature },
+            // Package installs: recommend the hardware-appropriate ONNX variant.
+            // The Inventory's recommendation pass already picked the best one
+            // (CUDA-12/13 vs MIGraphX vs AVX-512 vs AVX2) given the detected
+            // CPU/GPU.
+            _ => Remediation::SwitchToVariant {
+                target: inventory.recommendation.onnx,
+            },
+        }
     };
 
     Some(VariantMismatch {
@@ -153,6 +157,22 @@ mod tests {
             engine,
             ..Config::default()
         }
+    }
+
+    #[test]
+    fn granite_package_mismatch_requires_native_rebuild() {
+        let inventory = fake_inventory(
+            InstallKind::Package,
+            vec![],
+            Variant::WhisperAvx2,
+            Variant::OnnxAvx2,
+        );
+        let config = config_with_engine(TranscriptionEngine::Granite);
+        let mismatch = detect_mismatch(&config, &inventory).unwrap();
+        assert!(matches!(
+            mismatch.remediation,
+            Remediation::Rebuild { feature: "granite" }
+        ));
     }
 
     #[test]

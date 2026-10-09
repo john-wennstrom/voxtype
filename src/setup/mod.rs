@@ -513,6 +513,7 @@ pub(crate) enum ModelKind {
     Omnilingual,
     Cohere,
     OpenVino,
+    Granite,
 }
 
 /// Resolve a `--model` name to the engine that owns it.
@@ -545,11 +546,13 @@ pub(crate) fn classify_model_override(name: &str) -> anyhow::Result<ModelKind> {
         Ok(ModelKind::Cohere)
     } else if model::is_openvino_model(name) {
         Ok(ModelKind::OpenVino)
+    } else if name == model::GRANITE_MODEL_NAME {
+        Ok(ModelKind::Granite)
     } else {
         anyhow::bail!(
             "Unknown model '{}'.\n  Whisper: {}\n  Parakeet: {}\n  SenseVoice: {}\n  \
              Moonshine: {}\n  Paraformer: {}\n  Dolphin: {}\n  Omnilingual: {}\n  \
-             Cohere: {}\n  OpenVINO: {}",
+             Cohere: {}\n  OpenVINO: {}\n  Granite: {}",
             name,
             model::valid_model_names().join(", "),
             model::valid_parakeet_model_names().join(", "),
@@ -560,6 +563,7 @@ pub(crate) fn classify_model_override(name: &str) -> anyhow::Result<ModelKind> {
             model::omnilingual_setup_model_names().join(", "),
             model::cohere_setup_model_names().join(", "),
             model::valid_openvino_model_names().join(", "),
+            model::GRANITE_MODEL_NAME,
         )
     }
 }
@@ -717,7 +721,51 @@ pub async fn run_setup(
     let is_sensevoice = kind == Some(ModelKind::SenseVoice);
     let is_openvino = kind == Some(ModelKind::OpenVino);
 
-    if let Some(route) = kind.and_then(onnx_setup_route) {
+    if kind == Some(ModelKind::Granite)
+        || (kind.is_none() && config.engine == crate::config::TranscriptionEngine::Granite)
+    {
+        anyhow::ensure!(
+            cfg!(feature = "granite"),
+            "Granite requires --features granite"
+        );
+        let settings = config.granite.clone().unwrap_or_default();
+        let name = model_override.unwrap_or(&settings.model);
+        let path = if let Some(relative) = name.strip_prefix("~/") {
+            dirs::home_dir()
+                .ok_or_else(|| anyhow::anyhow!("Home directory is unavailable"))?
+                .join(relative)
+        } else if std::path::Path::new(name).components().count() > 1 {
+            std::path::PathBuf::from(name)
+        } else {
+            models_dir.join(name)
+        };
+        let ready = model::validate_granite_model(&path).is_ok();
+        if !ready && download {
+            anyhow::ensure!(
+                name == model::GRANITE_MODEL_NAME,
+                "Custom GGUF paths cannot be downloaded; use --model {}",
+                model::GRANITE_MODEL_NAME
+            );
+            model::download_granite_model(name)?;
+        } else if !ready {
+            left_damaged = path.exists();
+            if !quiet {
+                print_info(&format!("Granite model not ready: {}", path.display()));
+                println!(
+                    "       Run: voxtype setup --download --model {}",
+                    model::GRANITE_MODEL_NAME
+                );
+            }
+        }
+        if ready || download {
+            if !quiet {
+                print_success(&format!("Granite model ready: {}", path.display()));
+            }
+            if activate {
+                model::set_engine_model_config("granite", name)?;
+            }
+        }
+    } else if let Some(route) = kind.and_then(onnx_setup_route) {
         // Engines whose downloads were picker-only until #687: routed
         // through the same registry + R2 + validator path the picker uses.
         let model_name = model_override.unwrap(); // Safe: a route implies Some
@@ -1497,6 +1545,7 @@ mod tests {
                     "omnilingual" => ModelKind::Omnilingual,
                     "cohere" => ModelKind::Cohere,
                     "openvino" => ModelKind::OpenVino,
+                    "granite" => ModelKind::Granite,
                     other => panic!(
                         "'{}' advertises a download argument but run_setup has no branch for it",
                         other

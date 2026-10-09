@@ -67,7 +67,8 @@ pub struct Cli {
         help_heading = "Transcription",
         long_help = "Override model for transcription.\n\
         Whisper: tiny, base, small, medium, large-v3, large-v3-turbo (and .en variants).\n\
-        Parakeet: parakeet-tdt-0.6b-v3, parakeet-tdt-0.6b-v3-int8"
+        Parakeet: parakeet-tdt-0.6b-v3, parakeet-tdt-0.6b-v3-int8.\n\
+        Granite: path to a Granite TurboCTC GGUF model"
     )]
     pub model: Option<String>,
 
@@ -177,6 +178,15 @@ pub struct Cli {
         hide_short_help = true
     )]
     pub remote_api_key: Option<String>,
+
+    /// Compute backend for native Granite inference
+    #[arg(
+        long,
+        value_name = "BACKEND",
+        value_parser = ["auto", "cpu", "cuda"],
+        help_heading = "Granite"
+    )]
+    pub granite_backend: Option<String>,
 
     // -- Soniox --
     /// API key for Soniox (or use SONIOX_API_KEY env var)

@@ -125,6 +125,10 @@ pub struct AllFields {
     pub ov_threads: Option<i64>,
     pub ov_on_demand_loading: bool,
     pub ov_section_existed: bool,
+
+    pub gr_model: String,
+    pub gr_backend: String,
+    pub gr_section_existed: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -201,6 +205,9 @@ pub enum FieldId {
     OvLanguage,
     OvThreads,
     OvOnDemandLoading,
+
+    GrModel,
+    GrBackend,
 }
 
 /// Cohere Transcribe officially supports these 14 languages. Token IDs are
@@ -291,6 +298,7 @@ fn rows_for_engine_with_mode(engine: &str, whisper_mode: &str) -> Vec<FieldId> {
             FieldId::OvThreads,
             FieldId::OvOnDemandLoading,
         ]),
+        "granite" => rows.extend_from_slice(&[FieldId::GrModel, FieldId::GrBackend]),
         _ => {}
     }
     rows
@@ -412,6 +420,14 @@ impl EngineState {
                 .get_bool("openvino", "on_demand_loading")
                 .unwrap_or(false),
             ov_section_existed: ed.get_string("openvino", "model").is_some(),
+
+            gr_model: ed
+                .get_string("granite", "model")
+                .unwrap_or_else(|| default_model("granite").to_string()),
+            gr_backend: ed
+                .get_string("granite", "backend")
+                .unwrap_or_else(|| "auto".to_string()),
+            gr_section_existed: ed.get_string("granite", "model").is_some(),
         };
         let mut state = Self {
             engine,
@@ -444,6 +460,15 @@ impl EngineState {
         self.binary_switch_blocked = None;
 
         let inv = binary::inventory();
+
+        if self.engine == "granite" {
+            if !inv.compiled_features.contains(&"granite") {
+                self.binary_switch_blocked = Some(
+                    "Granite requires a source build with --features granite or granite-cuda.",
+                );
+            }
+            return;
+        }
 
         // OpenVINO isn't part of the prebuilt binary distribution: no
         // Whisper or ONNX variant links against openvino-genai (it's an
@@ -654,6 +679,11 @@ impl EngineState {
             ed.set_bool("openvino", "on_demand_loading", f.ov_on_demand_loading);
         }
 
+        if self.engine == "granite" || f.gr_section_existed {
+            ed.set_string("granite", "model", &f.gr_model);
+            ed.set_string("granite", "backend", &f.gr_backend);
+        }
+
         match ed.save() {
             Ok(()) => {
                 self.dirty_since_load = false;
@@ -760,6 +790,7 @@ impl EngineState {
                 | FieldId::WRemoteEndpoint
                 | FieldId::WRemoteApiKey
                 | FieldId::WRemoteModel
+                | FieldId::GrModel
         )
     }
 
@@ -773,6 +804,7 @@ impl EngineState {
             FieldId::WRemoteEndpoint => self.fields.w_remote_endpoint.clone().unwrap_or_default(),
             FieldId::WRemoteApiKey => self.fields.w_remote_api_key.clone().unwrap_or_default(),
             FieldId::WRemoteModel => self.fields.w_remote_model.clone().unwrap_or_default(),
+            FieldId::GrModel => self.fields.gr_model.clone(),
             _ => String::new(),
         };
         self.editing = Some(TextEdit {
@@ -794,6 +826,13 @@ impl EngineState {
             FieldId::WRemoteEndpoint => self.fields.w_remote_endpoint = opt,
             FieldId::WRemoteApiKey => self.fields.w_remote_api_key = opt,
             FieldId::WRemoteModel => self.fields.w_remote_model = opt,
+            FieldId::GrModel => {
+                self.fields.gr_model = if trimmed.is_empty() {
+                    default_model("granite").to_string()
+                } else {
+                    buffer
+                };
+            }
             _ => {}
         }
         self.dirty_since_load = true;
@@ -901,6 +940,10 @@ impl EngineState {
             FieldId::OvLanguage => f.ov_language = cycle_str(LANG_CHOICES, &f.ov_language, delta),
             FieldId::OvThreads => f.ov_threads = cycle_threads(f.ov_threads, delta),
             FieldId::OvOnDemandLoading => f.ov_on_demand_loading = !f.ov_on_demand_loading,
+            FieldId::GrModel => f.gr_model = cycle_model("granite", &f.gr_model, delta),
+            FieldId::GrBackend => {
+                f.gr_backend = cycle_str(&["auto", "cpu", "cuda"], &f.gr_backend, delta)
+            }
         }
         self.dirty_since_load = true;
         self.feedback = None;
@@ -924,6 +967,7 @@ fn active_model_for_engine(engine: &str, f: &AllFields) -> Option<String> {
         "omnilingual" => Some(f.om_model.clone()),
         "cohere" => Some(f.co_model.clone()),
         "openvino" => Some(f.ov_model.clone()),
+        "granite" => Some(f.gr_model.clone()),
         _ => None,
     }
 }
@@ -987,6 +1031,7 @@ fn installed_engine_choices() -> std::collections::HashSet<&'static str> {
             // runtime, unrelated to the Whisper/ONNX distribution). Source
             // builds with the feature compiled in are the only way it runs.
             "openvino",
+            "granite",
         ] {
             if *f == engine {
                 out.insert(engine);
@@ -1310,6 +1355,8 @@ fn field_label_value(state: &EngineState, fid: FieldId) -> (&'static str, String
             "OpenVINO · on-demand model load",
             yesno(f.ov_on_demand_loading),
         ),
+        FieldId::GrModel => ("Granite · model", f.gr_model.clone()),
+        FieldId::GrBackend => ("Granite · backend", f.gr_backend.clone()),
     }
 }
 
@@ -1448,6 +1495,12 @@ fn guidance(state: &EngineState) -> Vec<Line<'_>> {
         FieldId::OmModel => model_guidance("omnilingual", &f.om_model),
         FieldId::CoModel => model_guidance("cohere", &f.co_model),
         FieldId::OvModel => model_guidance("openvino", &f.ov_model),
+        FieldId::GrModel => model_guidance("granite", &f.gr_model),
+        FieldId::GrBackend => vec![
+            heading("Granite · backend"),
+            Line::from("auto: native runtime selection; cpu: force CPU."),
+            Line::from("cuda: require CUDA and a granite-cuda build, without CPU fallback."),
+        ],
 
         FieldId::WMode => vec![
             heading("Whisper · execution mode"),
@@ -2045,6 +2098,25 @@ mod tests {
             .map(|span| span.content.as_ref())
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    #[test]
+    fn granite_tui_exposes_native_settings_and_model() {
+        let rows = rows_for_engine_with_mode("granite", "local");
+        assert_eq!(
+            rows,
+            vec![FieldId::Engine, FieldId::GrModel, FieldId::GrBackend]
+        );
+        assert!(EngineState::is_text_field(FieldId::GrModel));
+        let fields = AllFields {
+            gr_model: "/tmp/granite.gguf".to_string(),
+            gr_backend: "cpu".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(
+            active_model_for_engine("granite", &fields).as_deref(),
+            Some("/tmp/granite.gguf")
+        );
     }
 
     #[test]

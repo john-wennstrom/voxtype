@@ -833,7 +833,9 @@ Any valid evdev key name works. Common choices:
 
 ## Transcription Engines
 
-Voxtype supports seven speech-to-text engines. Whisper uses whisper.cpp and works with any binary variant. The other six engines run via ONNX Runtime and require an ONNX binary variant (`voxtype-*-onnx-*`).
+Whisper uses whisper.cpp and works with any binary variant. The ONNX engines
+require an ONNX binary variant (`voxtype-*-onnx-*`). This fork also provides a
+native Granite engine in source builds with `granite` or `granite-cuda` enabled.
 
 | Engine | Best For | GPU Required | Languages |
 |--------|----------|--------------|-----------|
@@ -845,6 +847,94 @@ Voxtype supports seven speech-to-text engines. Whisper uses whisper.cpp and work
 | **Dolphin** | Dictation-optimized, fast CTC | No | Chinese + English |
 | **Omnilingual** | Broadest language coverage in ONNX engines | No | 50+ languages |
 | **Cohere** | #1 Open ASR Leaderboard accuracy | Optional (CUDA via `cohere-cuda`) | Arabic, German, English, Spanish, French, Hindi, Italian, Japanese, Korean, Dutch, Portuguese, Russian, Turkish, Chinese (14) |
+| **Granite** (this fork) | Resident TurboCTC dictation | Optional (native CPU or CUDA) | English in this initial integration |
+
+### Native Granite (Fork)
+
+Granite runs inside Voxtype through the pinned `transcribe-cpp` 0.3.1 binding.
+There is no HTTP server or separate inference worker in this path. Existing
+hotkey capture, microphone capture, text processing, and output drivers are reused.
+
+The development workflow on this machine reuses the verified shared runtime at
+`../target/native-cuda` and the installed GGUF in Granitevox's data directory:
+
+```bash
+cd voxtype
+just build
+bash scripts/run-granite.sh transcribe tests/fixtures/vad/speech_hello.wav
+just
+```
+
+Run these from this fork, not the parent Granitevox project. Stop the old
+Granitevox launcher before starting the new daemon, so two Voxtype processes
+do not observe the same hotkey. `just` runs only the native Voxtype daemon.
+The sample `config/granite.toml` uses hold-to-talk Super+V, a 30-second recording
+cap, and eitype-only output with no clipboard fallback. The launcher requests
+eitype portal authorization before startup and aborts if it is declined.
+Keyboard-device access and the eitype executable must already be available.
+
+On GNOME, keep the existing custom Super+V shortcut bound to `/usr/bin/true`.
+Evdev observes events but does not consume them; GNOME's no-op binding prevents
+repeating V characters from reaching the focused application. On a fresh setup,
+add that binding in Settings > Keyboard > Custom Shortcuts. Do not bind a toggle
+command there: Voxtype handles press and release itself. This fork emits one
+release when either the target key or a required modifier is released.
+
+The launcher uses `VOXTYPE_GRANITE_MODEL` when set, otherwise the existing
+Granitevox model, then Voxtype's standard model directory. It also accepts
+`VOXTYPE_GRANITE_CONFIG`, `VOXTYPE_GRANITE_BINARY`, and `TRANSCRIBE_DIR` for local
+paths. To force CPU with the same build:
+
+```bash
+VOXTYPE_GRANITE_BACKEND=cpu bash scripts/run-granite.sh transcribe tests/fixtures/vad/speech_hello.wav
+```
+
+If weights are not installed, the native binary can download the stock Q8 model:
+
+```bash
+./target/granite-cuda/debug/voxtype setup --download --model granite-speech-5.0-470m-turboctc-Q8_0.gguf
+```
+
+This downloads 505,606,496 bytes from a pinned HuggingFace revision, checks the
+GGUF header and SHA-256, then atomically installs the file. Downloading does not
+select the engine unless `--activate` is passed. No Granite R2 mirror is
+registered yet. An existing installed file was checksum-verified during local
+validation; a fresh network download has not been exercised end to end here.
+
+Build requirements: ALSA development files, Clang, CMake, a shared
+`transcribe.cpp` 0.3.1 runtime, and a sufficiently recent Rust compiler. The
+installed stable Rust 1.93 cannot compile upstream's CPU intrinsics; local
+validation uses the already-installed `nightly-2026-08-22`. Override this with
+`VOXTYPE_RUST_TOOLCHAIN` when using another compatible compiler. The Just recipes
+set the native library rpath and use a dedicated target directory. For another
+runtime location, set `TRANSCRIBE_DIR` before building.
+
+This is a local development build, not a portable release package. Only Linux
+with the supplied shared runtime has been tested; static dual-GGML builds and
+other platforms are unverified. Release binaries still require the repository's
+Docker build process and runtime packaging. Do not build distributable release
+binaries directly on the host.
+
+Validation commands:
+
+```bash
+just check
+just test
+VOXTYPE_GRANITE_MODEL=/path/to/model.gguf VOXTYPE_GRANITE_BACKEND=cuda \
+  cargo +nightly-2026-08-22 test --locked --features granite-cuda --lib \
+  granite_resident_native_speech_smoke -- --ignored --nocapture
+```
+
+On the tested nightly, the strict `just check` Clippy gate is blocked by
+upstream `double_must_use` warnings generated by `async_trait` and the existing
+listener's `too_many_arguments` warning. These unrelated definitions are left
+unchanged. Additional lint validation can explicitly waive those two categories
+while keeping every other warning fatal; this does not make the strict gate pass.
+
+For the last command, retain the `TRANSCRIBE_DIR`, `RUSTFLAGS`, CMake `PATH`, and
+`CARGO_TARGET_DIR` used by `just build`. The ignored test transcribes an existing
+speech fixture twice through one resident session. Live microphone capture and
+focused-application typing still require a user trial after portal authorization.
 
 ### Selecting an Engine
 

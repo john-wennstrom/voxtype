@@ -81,6 +81,7 @@ rodio = { version = "0.19", default-features = false, features = ["wav"] }
 
 # Whisper speech-to-text
 whisper-rs = "0.16.0"
+transcribe-cpp = { version = "=0.3.1", default-features = false, optional = true }
 
 # Parakeet speech-to-text (optional, ONNX-based)
 parakeet-rs = { version = "0.3.5", optional = true }
@@ -169,6 +170,8 @@ zbus = { version = "4", default-features = false, features = ["tokio"] }
 
 [features]
 default = []
+granite = ["dep:transcribe-cpp"]
+granite-cuda = ["granite", "transcribe-cpp/cuda"]
 # OSD frontends. Each binary is gated on its own feature so users can
 # build only the rendering stack they need. Real GUI deps land in
 # Commits 4a/4b; the lists below grow then.

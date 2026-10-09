@@ -24,6 +24,7 @@ pub const CATALOG_ENGINES: &[&str] = &[
     "omnilingual",
     "cohere",
     "openvino",
+    "granite",
 ];
 
 /// Models voxtype knows how to download for `engine`.
@@ -43,6 +44,7 @@ pub fn model_catalog(engine: &str) -> Vec<&'static str> {
             "cohere-transcribe-fp16",
         ],
         "openvino" => model::valid_openvino_model_names(),
+        "granite" => vec![model::GRANITE_MODEL_NAME],
         _ => Vec::new(),
     }
 }
@@ -61,6 +63,7 @@ pub const fn default_model(engine: &str) -> &'static str {
         b"omnilingual" => "omnilingual-300m",
         b"cohere" => "cohere-transcribe-q4f16",
         b"openvino" => "base.en-int8",
+        b"granite" => model::GRANITE_MODEL_NAME,
         _ => "",
     }
 }
@@ -96,7 +99,7 @@ pub fn model_dir_name(engine: &str, model: &str) -> String {
 /// The remaining engines' catalog names are already directory names.
 pub fn download_arg(engine: &str, model: &str) -> Option<String> {
     match engine {
-        "whisper" | "parakeet" | "openvino" => Some(model.to_string()),
+        "whisper" | "parakeet" | "openvino" | "granite" => Some(model.to_string()),
         "sensevoice" | "moonshine" => Some(model_dir_name(engine, model)),
         "paraformer" | "dolphin" | "omnilingual" | "cohere" => Some(model.to_string()),
         _ => None,
@@ -106,6 +109,17 @@ pub fn download_arg(engine: &str, model: &str) -> Option<String> {
 /// On-disk location of a model: a single `ggml-<name>.bin` file for whisper,
 /// a directory for every ONNX engine.
 fn model_path(models_dir: &Path, engine: &str, model: &str) -> std::path::PathBuf {
+    if engine == "granite" {
+        if let Some(relative) = model.strip_prefix("~/") {
+            if let Some(home) = dirs::home_dir() {
+                return home.join(relative);
+            }
+        }
+        let path = std::path::PathBuf::from(model);
+        if path.is_absolute() || path.components().count() > 1 {
+            return path;
+        }
+    }
     if engine == "whisper" {
         models_dir.join(format!("ggml-{}.bin", model))
     } else {
@@ -172,6 +186,13 @@ pub(crate) fn model_health_in(models_dir: &Path, engine: &str, model: &str) -> M
         };
     }
 
+    if engine == "granite" {
+        return match model::validate_download(&path, None, model::ContentCheck::Gguf) {
+            Ok(()) => ModelHealth::Present,
+            Err(error) => ModelHealth::Corrupt(vec![format!("{}: {}", display_name(&path), error)]),
+        };
+    }
+
     if engine == "openvino" {
         return match model::validate_openvino_model(&path) {
             Ok(()) => ModelHealth::Present,
@@ -229,6 +250,16 @@ pub(crate) fn verify_model_in(models_dir: &Path, engine: &str, model: &str) -> M
     // to report here.
     if let ModelHealth::Corrupt(problems) = model_health_in(models_dir, engine, model) {
         return ModelVerification::Corrupt(problems);
+    }
+
+    if engine == "granite" {
+        if path.file_name().and_then(|name| name.to_str()) != Some(model::GRANITE_MODEL_NAME) {
+            return ModelVerification::Unverifiable("no checksum is recorded for this custom GGUF");
+        }
+        return match model::validate_granite_model(&path) {
+            Ok(()) => ModelVerification::Ok,
+            Err(error) => ModelVerification::Corrupt(vec![error.to_string()]),
+        };
     }
 
     if engine == "whisper" {
@@ -297,6 +328,35 @@ mod tests {
     use super::*;
     use crate::config_set::ENGINE_NAMES;
     use crate::setup::manifest::{write_cached_manifest, Manifest, ManifestFile};
+
+    #[test]
+    fn granite_catalog_checks_gguf_files_and_explicit_paths() {
+        let temporary = tempfile::tempdir().unwrap();
+        let filename = model::GRANITE_MODEL_NAME;
+        let path = temporary.path().join(filename);
+        assert_eq!(
+            model_health_in(temporary.path(), "granite", filename),
+            ModelHealth::Missing
+        );
+        std::fs::write(&path, b"GGUFtest").unwrap();
+        assert_eq!(
+            model_health_in(temporary.path(), "granite", filename),
+            ModelHealth::Present
+        );
+        assert_eq!(
+            model_path(temporary.path(), "granite", path.to_str().unwrap()),
+            path
+        );
+        assert!(matches!(
+            verify_model_in(temporary.path(), "granite", filename),
+            ModelVerification::Corrupt(_)
+        ));
+        std::fs::write(&path, b"<html>error</html>").unwrap();
+        assert!(matches!(
+            model_health_in(temporary.path(), "granite", filename),
+            ModelHealth::Corrupt(_)
+        ));
+    }
 
     /// Build a model directory and record a manifest describing exactly what
     /// was written, the way a real download leaves things.

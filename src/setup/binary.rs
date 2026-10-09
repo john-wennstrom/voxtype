@@ -857,6 +857,12 @@ pub fn compiled_features() -> Vec<&'static str> {
     if cfg!(feature = "openvino-whisper") {
         f.push("openvino");
     }
+    if cfg!(feature = "granite") {
+        f.push("granite");
+    }
+    if cfg!(feature = "granite-cuda") {
+        f.push("granite-cuda");
+    }
     // Meeting-mode capability: ML-based speaker diarization (ECAPA-TDNN).
     // When absent, meeting mode falls back to source-based attribution.
     if cfg!(feature = "ml-diarization") {
