@@ -17,19 +17,24 @@ use raw_window_handle::{
 };
 use smithay_client_toolkit::{
     compositor::{CompositorHandler, CompositorState, Region},
-    delegate_compositor, delegate_layer, delegate_output, delegate_registry,
+    delegate_compositor, delegate_layer, delegate_output, delegate_pointer, delegate_registry,
+    delegate_seat,
     output::{OutputHandler, OutputState},
     reexports::{
         calloop::{self, EventLoop},
         calloop_wayland_source::WaylandSource,
         client::{
             globals::registry_queue_init,
-            protocol::{wl_output, wl_surface::WlSurface},
+            protocol::{wl_output, wl_pointer, wl_seat, wl_surface::WlSurface},
             Connection, Proxy, QueueHandle,
         },
     },
     registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
+    seat::{
+        pointer::{PointerEvent, PointerEventKind, PointerHandler},
+        Capability, SeatHandler, SeatState,
+    },
     shell::{
         wlr_layer::{
             Anchor, KeyboardInteractivity, Layer, LayerShell, LayerShellHandler, LayerSurface,
@@ -42,7 +47,7 @@ use smithay_client_toolkit::{
 use voxtype::audio::levels::AudioFrame;
 use voxtype::osd::config::{OsdConfig, OsdPosition};
 use voxtype::osd::ipc::FrameRing;
-use voxtype::osd::transcript::{now_ms, TranscriptSnapshot};
+use voxtype::osd::transcript::{now_ms, request_review_action, ReviewAction, TranscriptSnapshot};
 use voxtype::osd::visual::{
     peak_meter_fraction, project_envelope, EnvelopeColumn, MeterZone, Palette, PeakHold,
 };
@@ -81,6 +86,9 @@ pub struct App {
     output_state: OutputState,
     compositor_state: CompositorState,
     layer_shell: LayerShell,
+    seat_state: SeatState,
+    pointers: Vec<(wl_seat::WlSeat, wl_pointer::WlPointer)>,
+    pointer_events: Vec<egui::Event>,
 
     qh: QueueHandle<App>,
     conn: Connection,
@@ -147,6 +155,9 @@ pub fn run(
         output_state,
         compositor_state,
         layer_shell,
+        seat_state: SeatState::new(&globals, &qh),
+        pointers: Vec::new(),
+        pointer_events: Vec::new(),
         qh: qh.clone(),
         conn: conn.clone(),
         shared,
@@ -198,8 +209,7 @@ impl App {
             let snapshot =
                 TranscriptSnapshot::read(path).filter(|value| value.visible_at(now_ms()));
             let mut current = self.shared.transcript.lock().expect("transcript poisoned");
-            self.transcript_dirty |= current.as_ref().map(|value| &value.text)
-                != snapshot.as_ref().map(|value| &value.text);
+            self.transcript_dirty |= current.as_ref() != snapshot.as_ref();
             *current = snapshot;
             let visible = current.is_some();
             if let Some(value) = current.as_ref() {
@@ -301,7 +311,20 @@ impl App {
         // outlive the commit that activates it; we let it drop after.
         let region = Region::new(&self.compositor_state)
             .map_err(|e| anyhow!("create input region: {}", e))?;
-        wl_surface.set_input_region(Some(region.wl_region()));
+        let review_mode = self
+            .shared
+            .transcript
+            .lock()
+            .ok()
+            .and_then(|snapshot| {
+                snapshot
+                    .as_ref()
+                    .map(|snapshot| snapshot.settings.review_mode)
+            })
+            .unwrap_or(false);
+        if !review_mode {
+            wl_surface.set_input_region(Some(region.wl_region()));
+        }
 
         layer.commit();
         drop(region);
@@ -442,6 +465,7 @@ impl App {
             .create_view(&wgpu::TextureViewDescriptor::default());
 
         let raw_input = egui::RawInput {
+            events: std::mem::take(&mut self.pointer_events),
             screen_rect: Some(egui::Rect::from_min_size(
                 egui::Pos2::ZERO,
                 egui::vec2(rs.width as f32, rs.height as f32),
@@ -488,9 +512,10 @@ impl App {
             .lock()
             .ok()
             .and_then(|value| value.clone());
+        let mut review_action = None;
         let full_output = rs.egui_ctx.run_ui(raw_input, |ui| {
             if let Some(snapshot) = &transcript {
-                draw_transcript(ui, width_px, height_px, snapshot);
+                review_action = draw_transcript(ui, width_px, height_px, snapshot);
             } else {
                 draw_ui(
                     ui,
@@ -581,6 +606,15 @@ impl App {
         rs.frame_pending = true;
         surface_texture.present();
         self.transcript_dirty = false;
+        if let (Some(action), Some(snapshot), Some(path)) = (
+            review_action,
+            transcript.as_ref(),
+            self.shared.transcript_path.as_ref(),
+        ) {
+            if let Err(error) = request_review_action(path, snapshot.revision, action) {
+                tracing::warn!("Transcript review action failed: {error}");
+            }
+        }
         Ok(())
     }
 }
@@ -590,27 +624,107 @@ pub(crate) fn draw_transcript(
     width: u32,
     height: u32,
     snapshot: &TranscriptSnapshot,
-) {
+) -> Option<ReviewAction> {
     let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width as f32, height as f32));
-    let painter = ui.painter();
+    let painter = ui.painter().clone();
     painter.rect_filled(
         rect,
         0.0,
         egui::Color32::from_white_alpha((snapshot.settings.opacity * 255.0).round() as u8),
     );
-    let inner = rect.shrink(24.0);
-    let galley = painter.layout(
-        snapshot.text.clone(),
-        egui::FontId::proportional(snapshot.settings.font_size),
-        egui::Color32::from_rgb(24, 24, 24),
-        inner.width().max(1.0),
-    );
+    let mut inner = rect.shrink(24.0_f32.min(height as f32 / 10.0));
+    let footer = egui::Rect::from_min_max(egui::pos2(inner.min.x, inner.max.y - 32.0), inner.max);
+    if snapshot.settings.review_mode {
+        inner.max.y -= 40.0;
+    }
+    let text_color = egui::Color32::from_rgb(24, 24, 24);
+    let score_color = egui::Color32::from_rgb(68, 86, 92);
+    if snapshot.settings.review_mode || snapshot.confidence.is_some() {
+        let label = snapshot.confidence.map_or_else(
+            || "Confidence --/100".to_string(),
+            |score| format!("Confidence {:.0}/100", score * 100.0),
+        );
+        painter.with_clip_rect(inner).text(
+            inner.left_top(),
+            egui::Align2::LEFT_TOP,
+            label,
+            egui::FontId::proportional(14.0),
+            score_color,
+        );
+        inner.min.y += 24.0;
+    }
+    let normal_format = egui::TextFormat {
+        font_id: egui::FontId::proportional(snapshot.settings.font_size),
+        color: text_color,
+        ..Default::default()
+    };
+    let score_format = egui::TextFormat {
+        font_id: egui::FontId::proportional((snapshot.settings.font_size * 0.55).max(12.0)),
+        color: score_color,
+        ..Default::default()
+    };
+    let mut job = egui::text::LayoutJob::default();
+    job.wrap.max_width = inner.width().max(1.0);
+    if snapshot.words.is_empty() {
+        job.append(&snapshot.text, 0.0, normal_format);
+    } else {
+        for (index, word) in snapshot.words.iter().enumerate() {
+            if index > 0 {
+                job.append(" ", 0.0, normal_format.clone());
+            }
+            job.append(&word.text, 0.0, normal_format.clone());
+            if let Some(score) = word.confidence {
+                job.append(
+                    &format!("\u{00a0}[{:.0}]", score * 100.0),
+                    0.0,
+                    score_format.clone(),
+                );
+            }
+        }
+    }
+    if snapshot.settings.review_mode {
+        ui.style_mut().visuals = egui::Visuals::light();
+        ui.scope_builder(egui::UiBuilder::new().max_rect(inner), |ui| {
+            ui.set_clip_rect(inner);
+            egui::ScrollArea::vertical()
+                .id_salt("review-transcript")
+                .max_height(inner.height().max(1.0))
+                .auto_shrink([false, false])
+                .stick_to_bottom(snapshot.recording)
+                .show(ui, |ui| {
+                    ui.add(egui::Label::new(job).wrap());
+                });
+        });
+        let mut action = None;
+        ui.scope_builder(egui::UiBuilder::new().max_rect(footer), |ui| {
+            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                ui.add_enabled_ui(snapshot.pending_delivery, |ui| {
+                    let deliver = egui::Button::new(
+                        egui::RichText::new("Deliver").color(egui::Color32::WHITE),
+                    )
+                    .fill(egui::Color32::from_rgb(34, 103, 94));
+                    if ui.add_sized([96.0, 28.0], deliver).clicked() {
+                        action = Some(ReviewAction::Deliver);
+                    }
+                    if ui
+                        .add_sized([96.0, 28.0], egui::Button::new("Discard"))
+                        .clicked()
+                    {
+                        action = Some(ReviewAction::Discard);
+                    }
+                });
+            });
+        });
+        return action;
+    }
+    let galley = painter.layout_job(job);
     let offset = (galley.size().y - inner.height()).max(0.0);
     painter.with_clip_rect(inner).galley(
         inner.left_top() - egui::vec2(0.0, offset),
         galley,
-        egui::Color32::from_rgb(24, 24, 24),
+        text_color,
     );
+    None
 }
 
 #[cfg(test)]
@@ -623,6 +737,10 @@ mod transcript_tests {
         for width in [320, 760] {
             let snapshot = TranscriptSnapshot {
                 text: "A live transcript wraps without changing the focused window. ".repeat(12),
+                revision: 0,
+                pending_delivery: false,
+                confidence: None,
+                words: Vec::new(),
                 recording: true,
                 expires_at_ms: 0,
                 settings: TranscriptPopupConfig {
@@ -639,7 +757,9 @@ mod transcript_tests {
                     )),
                     ..Default::default()
                 },
-                |ui| draw_transcript(ui, width, 280, &snapshot),
+                |ui| {
+                    draw_transcript(ui, width, 280, &snapshot);
+                },
             );
             let background = output
                 .shapes
@@ -662,6 +782,182 @@ mod transcript_tests {
                 .unwrap();
             assert!(text.galley.rows.len() > 1);
             assert!(text.galley.size().x <= width as f32 - 48.0);
+        }
+    }
+
+    #[test]
+    fn transcript_popup_renders_numeric_confidence_without_overlap() {
+        for (width, height) in [(240, 80), (320, 280), (760, 280), (1920, 1080)] {
+            let snapshot = TranscriptSnapshot {
+                text: "Hello world".to_string(),
+                revision: 0,
+                pending_delivery: false,
+                confidence: Some(0.7),
+                words: vec![
+                    voxtype::transcribe::WordConfidence {
+                        text: "Hello".to_string(),
+                        confidence: Some(0.8),
+                    },
+                    voxtype::transcribe::WordConfidence {
+                        text: "world".to_string(),
+                        confidence: Some(0.6),
+                    },
+                ],
+                recording: true,
+                expires_at_ms: 0,
+                settings: TranscriptPopupConfig {
+                    enabled: true,
+                    ..Default::default()
+                },
+            };
+            let context = egui::Context::default();
+            let output = context.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(width as f32, height as f32),
+                    )),
+                    ..Default::default()
+                },
+                |ui| {
+                    draw_transcript(ui, width, height, &snapshot);
+                },
+            );
+            let texts: Vec<_> = output
+                .shapes
+                .iter()
+                .filter_map(|shape| {
+                    if let egui::Shape::Text(text) = &shape.shape {
+                        Some((shape, text))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            assert_eq!(texts.len(), 2);
+            assert_eq!(texts[0].1.galley.job.text, "Confidence 70/100");
+            assert_eq!(
+                texts[1].1.galley.job.text,
+                "Hello\u{00a0}[80] world\u{00a0}[60]"
+            );
+            assert!(texts[1]
+                .1
+                .galley
+                .rows
+                .iter()
+                .all(|row| { row.glyphs.first().is_none_or(|glyph| glyph.chr != '[') }));
+            let padding = 24.0_f32.min(height as f32 / 10.0);
+            assert!(texts[0].1.galley.size().x <= width as f32 - padding * 2.0);
+            assert!(texts[1].1.galley.size().x <= width as f32 - padding * 2.0);
+            assert!(texts[0].1.pos.y + texts[0].1.galley.size().y <= texts[1].0.clip_rect.min.y);
+            assert!(texts[1].0.clip_rect.max.y <= height as f32 - padding);
+        }
+    }
+    #[test]
+    fn transcript_popup_review_always_renders_confidence_header() {
+        for (text, recording, pending_delivery) in [
+            ("", false, false),
+            ("Live words", true, false),
+            ("Reviewed words", false, true),
+        ] {
+            for confidence in [None, Some(0.85)] {
+                let snapshot = TranscriptSnapshot {
+                    text: text.to_string(),
+                    revision: 1,
+                    pending_delivery,
+                    confidence,
+                    words: Vec::new(),
+                    recording,
+                    expires_at_ms: 0,
+                    settings: TranscriptPopupConfig {
+                        enabled: true,
+                        review_mode: true,
+                        ..Default::default()
+                    },
+                };
+                let context = egui::Context::default();
+                let output = context.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(760.0, 280.0),
+                        )),
+                        ..Default::default()
+                    },
+                    |ui| {
+                        draw_transcript(ui, 760, 280, &snapshot);
+                    },
+                );
+                let expected = if confidence.is_some() {
+                    "Confidence 85/100"
+                } else {
+                    "Confidence --/100"
+                };
+                assert!(output.shapes.iter().any(|shape| {
+                    matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text == expected)
+                }));
+            }
+        }
+    }
+
+    #[test]
+    fn transcript_popup_review_buttons_deliver_only_ready_text() {
+        for pending_delivery in [false, true] {
+            for (expected_action, horizontal) in [
+                (ReviewAction::Deliver, 72.0),
+                (ReviewAction::Discard, 176.0),
+            ] {
+                let snapshot = TranscriptSnapshot {
+                    text: "Reviewed words".to_string(),
+                    revision: 1,
+                    pending_delivery,
+                    confidence: None,
+                    words: Vec::new(),
+                    recording: false,
+                    expires_at_ms: 0,
+                    settings: TranscriptPopupConfig {
+                        enabled: true,
+                        review_mode: true,
+                        ..Default::default()
+                    },
+                };
+                let context = egui::Context::default();
+                let position = egui::pos2(horizontal, 240.0);
+                let mut action = None;
+                for events in [
+                    vec![],
+                    vec![
+                        egui::Event::PointerMoved(position),
+                        egui::Event::PointerButton {
+                            pos: position,
+                            button: egui::PointerButton::Primary,
+                            pressed: true,
+                            modifiers: Default::default(),
+                        },
+                    ],
+                    vec![egui::Event::PointerButton {
+                        pos: position,
+                        button: egui::PointerButton::Primary,
+                        pressed: false,
+                        modifiers: Default::default(),
+                    }],
+                ] {
+                    let _ = context.run_ui(
+                        egui::RawInput {
+                            screen_rect: Some(egui::Rect::from_min_size(
+                                egui::Pos2::ZERO,
+                                egui::vec2(760.0, 280.0),
+                            )),
+                            events,
+                            ..Default::default()
+                        },
+                        |ui| {
+                            action = draw_transcript(ui, 760, 280, &snapshot);
+                        },
+                    );
+                }
+                assert_eq!(action, pending_delivery.then_some(expected_action));
+            }
         }
     }
 }
@@ -885,6 +1181,110 @@ impl CompositorHandler for App {
     }
 }
 
+impl SeatHandler for App {
+    fn seat_state(&mut self) -> &mut SeatState {
+        &mut self.seat_state
+    }
+
+    fn new_seat(&mut self, _: &Connection, _: &QueueHandle<Self>, _: wl_seat::WlSeat) {}
+
+    fn new_capability(
+        &mut self,
+        _: &Connection,
+        qh: &QueueHandle<Self>,
+        seat: wl_seat::WlSeat,
+        capability: Capability,
+    ) {
+        if capability == Capability::Pointer
+            && !self.pointers.iter().any(|(current, _)| current == &seat)
+        {
+            match self.seat_state.get_pointer(qh, &seat) {
+                Ok(pointer) => self.pointers.push((seat, pointer)),
+                Err(error) => tracing::warn!("Popup pointer unavailable: {error}"),
+            }
+        }
+    }
+
+    fn remove_capability(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        seat: wl_seat::WlSeat,
+        capability: Capability,
+    ) {
+        if capability == Capability::Pointer {
+            self.pointers.retain(|(current, pointer)| {
+                if current == &seat {
+                    pointer.release();
+                    false
+                } else {
+                    true
+                }
+            });
+        }
+    }
+
+    fn remove_seat(&mut self, conn: &Connection, qh: &QueueHandle<Self>, seat: wl_seat::WlSeat) {
+        self.remove_capability(conn, qh, seat, Capability::Pointer);
+    }
+}
+
+impl PointerHandler for App {
+    fn pointer_frame(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        _: &wl_pointer::WlPointer,
+        events: &[PointerEvent],
+    ) {
+        for event in events {
+            if self
+                .surface
+                .as_ref()
+                .is_none_or(|surface| surface.wl_surface != event.surface)
+            {
+                continue;
+            }
+            let position = egui::pos2(event.position.0 as f32, event.position.1 as f32);
+            match event.kind {
+                PointerEventKind::Enter { .. } | PointerEventKind::Motion { .. } => {
+                    self.pointer_events
+                        .push(egui::Event::PointerMoved(position));
+                }
+                PointerEventKind::Leave { .. } => {
+                    self.pointer_events.push(egui::Event::PointerGone)
+                }
+                PointerEventKind::Press { button: 0x110, .. }
+                | PointerEventKind::Release { button: 0x110, .. } => {
+                    self.pointer_events.push(egui::Event::PointerButton {
+                        pos: position,
+                        button: egui::PointerButton::Primary,
+                        pressed: matches!(event.kind, PointerEventKind::Press { .. }),
+                        modifiers: Default::default(),
+                    });
+                }
+                PointerEventKind::Axis {
+                    horizontal,
+                    vertical,
+                    ..
+                } => {
+                    self.pointer_events.push(egui::Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Point,
+                        delta: egui::vec2(-horizontal.absolute as f32, -vertical.absolute as f32),
+                        phase: egui::TouchPhase::Move,
+                        modifiers: Default::default(),
+                    });
+                }
+                _ => {}
+            }
+            self.transcript_dirty = true;
+        }
+        if let Err(error) = self.render_frame() {
+            tracing::warn!("Transcript pointer render failed: {error}");
+        }
+    }
+}
+
 impl OutputHandler for App {
     fn output_state(&mut self) -> &mut OutputState {
         &mut self.output_state
@@ -960,12 +1360,14 @@ impl LayerShellHandler for App {
 delegate_compositor!(App);
 delegate_output!(App);
 delegate_layer!(App);
+delegate_seat!(App);
+delegate_pointer!(App);
 
 impl ProvidesRegistryState for App {
     fn registry(&mut self) -> &mut RegistryState {
         &mut self.registry_state
     }
-    registry_handlers![OutputState];
+    registry_handlers![OutputState, SeatState];
 }
 
 delegate_registry!(App);

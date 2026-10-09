@@ -10,6 +10,9 @@ export PATH := root / "target/tools/cmake-3.31.6-linux-x86_64/bin" + ":" + env("
 default: build-nemotron
     bash scripts/run-nemotron.sh
 
+review: build-nemotron
+    VOXTYPE_TRANSCRIPT_POPUP=true VOXTYPE_TRANSCRIPT_POPUP_REVIEW=true bash scripts/run-nemotron.sh
+
 granite: build
     bash scripts/run-granite.sh
 

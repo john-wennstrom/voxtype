@@ -2,9 +2,9 @@ use super::app::{draw_transcript, SharedState};
 use anyhow::Context as _;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use voxtype::osd::transcript::{now_ms, TranscriptSnapshot};
+use voxtype::osd::transcript::{now_ms, request_review_action, ReviewAction, TranscriptSnapshot};
 use winit::application::ApplicationHandler;
-use winit::event::WindowEvent;
+use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::platform::x11::{EventLoopBuilderExtX11, WindowAttributesExtX11};
 use winit::window::{Window, WindowId, WindowLevel};
@@ -47,8 +47,7 @@ impl ApplicationHandler for Popup {
             .as_deref()
             .and_then(TranscriptSnapshot::read)
             .filter(|value| value.visible_at(now_ms()));
-        let changed = self.snapshot.as_ref().map(|value| &value.text)
-            != snapshot.as_ref().map(|value| &value.text);
+        let changed = self.snapshot != snapshot;
         self.snapshot = snapshot;
         let Some(snapshot) = &self.snapshot else {
             self.renderer = None;
@@ -85,11 +84,67 @@ impl ApplicationHandler for Popup {
         match event {
             WindowEvent::RedrawRequested => {
                 if let Some(snapshot) = &self.snapshot {
-                    if let Err(error) = renderer.render(snapshot) {
-                        self.error = Some(error);
-                        event_loop.exit();
+                    match renderer.render(snapshot) {
+                        Ok(Some(action)) => {
+                            tracing::debug!(?action, "Transcript review button activated");
+                            if let Some(path) = &self.shared.transcript_path {
+                                if let Err(error) =
+                                    request_review_action(path, snapshot.revision, action)
+                                {
+                                    tracing::warn!("Transcript review action failed: {error}");
+                                }
+                            }
+                        }
+                        Ok(None) => {}
+                        Err(error) => {
+                            self.error = Some(error);
+                            event_loop.exit();
+                        }
                     }
                 }
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                renderer.pointer_pos = egui::pos2(position.x as f32, position.y as f32);
+                tracing::debug!(position = ?renderer.pointer_pos, "Transcript pointer moved");
+                renderer
+                    .events
+                    .push(egui::Event::PointerMoved(renderer.pointer_pos));
+                renderer.window.request_redraw();
+            }
+            WindowEvent::CursorLeft { .. } => {
+                renderer.events.push(egui::Event::PointerGone);
+                renderer.window.request_redraw();
+            }
+            WindowEvent::MouseInput {
+                state,
+                button: MouseButton::Left,
+                ..
+            } => {
+                tracing::debug!(?state, position = ?renderer.pointer_pos, "Transcript pointer button");
+                renderer.events.push(egui::Event::PointerButton {
+                    pos: renderer.pointer_pos,
+                    button: egui::PointerButton::Primary,
+                    pressed: state == ElementState::Pressed,
+                    modifiers: Default::default(),
+                });
+                renderer.window.request_redraw();
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                let delta = match delta {
+                    MouseScrollDelta::LineDelta(horizontal, vertical) => {
+                        egui::vec2(horizontal, vertical) * 24.0
+                    }
+                    MouseScrollDelta::PixelDelta(position) => {
+                        egui::vec2(position.x as f32, position.y as f32)
+                    }
+                };
+                renderer.events.push(egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta,
+                    phase: egui::TouchPhase::Move,
+                    modifiers: Default::default(),
+                });
+                renderer.window.request_redraw();
             }
             WindowEvent::Resized(size) => {
                 renderer.config.width = size.width.max(1);
@@ -113,6 +168,8 @@ struct Renderer {
     context: egui::Context,
     painter: egui_wgpu::Renderer,
     window: Arc<Window>,
+    events: Vec<egui::Event>,
+    pointer_pos: egui::Pos2,
 }
 
 impl Renderer {
@@ -145,7 +202,7 @@ impl Renderer {
             ));
         let window = Arc::new(event_loop.create_window(attributes)?);
         window
-            .set_cursor_hittest(false)
+            .set_cursor_hittest(snapshot.settings.review_mode)
             .context("Make transcript popup click-through")?;
         window.set_ime_allowed(false);
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -192,31 +249,37 @@ impl Renderer {
             context: egui::Context::default(),
             painter,
             window,
+            events: Vec::new(),
+            pointer_pos: egui::Pos2::ZERO,
         })
     }
 
-    fn render(&mut self, snapshot: &TranscriptSnapshot) -> anyhow::Result<()> {
+    fn render(&mut self, snapshot: &TranscriptSnapshot) -> anyhow::Result<Option<ReviewAction>> {
         let texture = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(texture)
             | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => texture,
             wgpu::CurrentSurfaceTexture::Lost | wgpu::CurrentSurfaceTexture::Outdated => {
                 self.surface.configure(&self.device, &self.config);
                 self.window.request_redraw();
-                return Ok(());
+                return Ok(None);
             }
             other => anyhow::bail!("Popup surface acquisition failed: {other:?}"),
         };
         let width = self.config.width;
         let height = self.config.height;
+        let mut action = None;
         let output = self.context.run_ui(
             egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
                     egui::Pos2::ZERO,
                     egui::vec2(width as f32, height as f32),
                 )),
+                events: std::mem::take(&mut self.events),
                 ..Default::default()
             },
-            |ui| draw_transcript(ui, width, height, snapshot),
+            |ui| {
+                action = draw_transcript(ui, width, height, snapshot);
+            },
         );
         let primitives = self
             .context
@@ -268,7 +331,7 @@ impl Renderer {
             self.painter.free_texture(&texture_id);
         }
         texture.present();
-        Ok(())
+        Ok(action)
     }
 }
 

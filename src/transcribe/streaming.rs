@@ -45,6 +45,7 @@
 //! The daemon may also send on `cancel` to abort early. After cancel,
 //! backends should stop emitting events as soon as practical.
 
+use super::WordConfidence;
 use crate::error::TranscribeError;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
@@ -67,22 +68,17 @@ pub enum StreamingEvent {
     Preview {
         text: String,
         segment_id: SegmentId,
+        words: Vec<WordConfidence>,
     },
 
     /// In-progress text for a segment. May be revised by later partials
     /// or superseded by a `Final` event with the same `segment_id`.
-    Partial {
-        text: String,
-        segment_id: SegmentId,
-    },
+    Partial { text: String, segment_id: SegmentId },
 
     /// Committed text for a segment. The daemon's default output policy
     /// is to type only `Final` segments, so revision-style providers do
     /// not produce visible churn.
-    Final {
-        text: String,
-        segment_id: SegmentId,
-    },
+    Final { text: String, segment_id: SegmentId },
 
     /// Backspace `backspace` chars then commit `text`. Used by streaming
     /// backends (notably Soniox) that revise the tail of a previously

@@ -141,6 +141,9 @@ pub fn load_config(path: Option<&Path>) -> Result<Config, VoxtypeError> {
     if let Ok(value) = std::env::var("VOXTYPE_TRANSCRIPT_POPUP") {
         config.transcript_popup.enabled = parse_bool_env(&value);
     }
+    if let Ok(value) = std::env::var("VOXTYPE_TRANSCRIPT_POPUP_REVIEW") {
+        config.transcript_popup.review_mode = parse_bool_env(&value);
+    }
     if let Ok(value) = std::env::var("VOXTYPE_TRANSCRIPT_POPUP_FONT_SIZE") {
         if let Ok(size) = value.parse() {
             config.transcript_popup.font_size = size;

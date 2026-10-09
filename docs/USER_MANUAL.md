@@ -871,14 +871,63 @@ The sample config uses dark 28px text, a solid white background, wrapping,
 square corners, and no border or shadow. GNOME uses XWayland; layer-shell
 compositors can also use a translucent background.
 
+While you speak, the popup shows a numeric confidence score out of 100 and a
+smaller score beside each word, such as `Hello [92] world [78]`. Word scores
+average Nemotron's subword-token confidence hints; the headline averages the
+available word scores. These entropy-based scores indicate decoder uncertainty,
+not the probability that a word is correct. Missing scores are left unmarked.
+Scores update with the live hypothesis and never become part of the inserted
+text. Word scores remain on the final popup only when its text still matches the
+scored hypothesis; text processing that changes it clears those word annotations.
+In review mode the overall decoder score remains visible even after text
+processing. Its header always stays in place, showing `--/100` when no score is
+available. It describes the original model hypothesis, not rewritten text.
+
+#### Review Before Delivery
+
+Stop the existing daemon, then run:
+
+```bash
+just review
+```
+
+The popup stays open, including between recordings. Hold Super+V to dictate and
+release to finalize without inserting anything. Scroll and review the text,
+select the destination application, then click **Deliver**. The popup does not
+take keyboard focus. **Discard** clears the draft without output. Both buttons
+are disabled until transcription finishes. Deliver or discard the current draft
+before recording again. After either action the popup remains open, and the
+confidence header remains visible. File-output commands still write automatically.
+
+To make this the normal behavior of `just`, enable the sample config setting:
+
+```bash
+bash scripts/run-nemotron.sh config set transcript_popup.review_mode true
+```
+
+Restart the daemon afterward. Set the key to `false` to return to immediate
+insertion on release. The equivalent TOML is:
+
+```toml
+[transcript_popup]
+enabled = true
+review_mode = true
+```
+
+CLI and environment overrides are `--transcript-popup-review true` and
+`VOXTYPE_TRANSCRIPT_POPUP_REVIEW=true`. Review mode ignores the final-display
+timeout and requires a popup height of at least 160 pixels. Unsent text is lost
+when the daemon stops; the popup is not transcript history.
+
 Disable only the popup in `config/nemotron.toml`:
 
 ```toml
 [transcript_popup]
 enabled = false
+review_mode = false
 ```
 
-Or run `VOXTYPE_TRANSCRIPT_POPUP=false just`. Transcription and final insertion
+Or run `VOXTYPE_TRANSCRIPT_POPUP=false VOXTYPE_TRANSCRIPT_POPUP_REVIEW=false just`. Transcription and final insertion
 are unchanged. Keep GNOME's Super+V no-op shortcut bound to `/usr/bin/true`,
 just as for Granite, to prevent repeated V characters reaching applications.
 

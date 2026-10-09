@@ -36,8 +36,9 @@ enabled = false
 
 [transcript_popup]
 enabled = true
-font_size = 28.0
-opacity = 1.0
-width_px = 760
-height_px = 280
-final_display_ms = 2000
+review_mode = false
+font_size = 24.0
+opacity = 0.8
+width_px = 860
+height_px = 380
+final_display_ms = 1000

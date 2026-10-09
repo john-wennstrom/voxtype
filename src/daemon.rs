@@ -801,6 +801,13 @@ fn cleanup_model_override() {
 type TranscriptionResult = std::result::Result<String, crate::error::TranscribeError>;
 
 /// Main daemon that orchestrates all components
+struct ReviewDelivery {
+    revision: u64,
+    text: String,
+    chain: Vec<Box<dyn TextOutput>>,
+    output_config: crate::config::OutputConfig,
+}
+
 pub struct Daemon {
     config: Config,
     config_path: Option<PathBuf>,
@@ -835,6 +842,7 @@ pub struct Daemon {
     osd_supervisor_task: Option<tokio::task::JoinHandle<()>>,
     transcript_publisher: Option<crate::osd::transcript::TranscriptPublisher>,
     transcript_supervisor_task: Option<tokio::task::JoinHandle<()>>,
+    pending_delivery: Option<ReviewDelivery>,
     streaming_ptt_held: bool,
     // Model manager for multi-model support
     model_manager: Option<ModelManager>,
@@ -986,6 +994,7 @@ impl Daemon {
             osd_supervisor_task: None,
             transcript_publisher: None,
             transcript_supervisor_task: None,
+            pending_delivery: None,
             streaming_ptt_held: false,
             model_manager: None,
             model_load_task: None,
@@ -1143,6 +1152,10 @@ impl Daemon {
         &mut self,
         track_silence: bool,
     ) -> std::result::Result<Box<dyn AudioCapture>, ()> {
+        if self.pending_delivery.is_some() {
+            tracing::warn!("Deliver or discard the pending transcript before recording again");
+            return Err(());
+        }
         // A `record cancel` issued while idle leaves its trigger file behind,
         // and the idle-time sweep that was meant to consume it never runs:
         // its 500ms timer sits in a select! loop whose unconditional 100ms
@@ -1261,6 +1274,10 @@ impl Daemon {
         model_override: Option<String>,
         track_silence: bool,
     ) -> bool {
+        if self.pending_delivery.is_some() {
+            tracing::warn!("Deliver or discard the pending transcript before recording again");
+            return false;
+        }
         // Same stale-trigger hazard as start_recording_capture: Streaming is
         // an is_recording() state, so a leftover cancel file would kill the
         // session moments after it starts. See #606.
@@ -1623,6 +1640,19 @@ impl Daemon {
             return;
         }
 
+        if self.config.transcript_popup.review_mode {
+            if let Some(session) = streaming_session.as_mut() {
+                session.finalize_pending_partial();
+            }
+            let text = streaming_session
+                .take()
+                .map(|session| session.finalized_text().to_string())
+                .unwrap_or_default();
+            *streaming_chain = None;
+            self.handle_transcription_result(state, Ok(Ok(text))).await;
+            return;
+        }
+
         *streaming_session = None;
         *streaming_chain = None;
 
@@ -1710,10 +1740,113 @@ impl Daemon {
         }
     }
 
+    fn publish_scored_transcript(&self, text: &str, words: &[crate::transcribe::WordConfidence]) {
+        if let Some(publisher) = &self.transcript_publisher {
+            if let Err(error) = publisher.publish_scored(text, true, words) {
+                tracing::warn!("Transcript popup update failed: {error}");
+            }
+        }
+    }
+
     fn clear_transcript(&self) {
         if let Some(publisher) = &self.transcript_publisher {
-            publisher.clear();
+            if self.config.transcript_popup.review_mode {
+                if let Err(error) = publisher.publish("", false) {
+                    tracing::warn!("Transcript popup reset failed: {error}");
+                }
+            } else {
+                publisher.clear();
+            }
         }
+    }
+
+    fn queue_review_delivery(
+        &mut self,
+        text: String,
+        chain: Vec<Box<dyn TextOutput>>,
+        output_config: crate::config::OutputConfig,
+    ) -> std::io::Result<()> {
+        let publisher = self.transcript_publisher.as_ref().ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::NotFound, "Review popup is unavailable")
+        })?;
+        let revision = publisher.stage_for_review(&text)?;
+        self.pending_delivery = Some(ReviewDelivery {
+            revision,
+            text,
+            chain,
+            output_config,
+        });
+        Ok(())
+    }
+
+    async fn handle_review_action(&mut self, state: &mut State) {
+        use crate::osd::transcript::ReviewAction;
+        let request = match self
+            .transcript_publisher
+            .as_ref()
+            .map(|publisher| publisher.take_review_request())
+        {
+            Some(Ok(Some(request))) => request,
+            Some(Err(error)) => {
+                tracing::warn!("Transcript review request failed: {error}");
+                return;
+            }
+            _ => return,
+        };
+        if self
+            .pending_delivery
+            .as_ref()
+            .is_none_or(|pending| pending.revision != request.revision)
+        {
+            return;
+        }
+        let mut pending = self
+            .pending_delivery
+            .take()
+            .expect("checked pending delivery");
+        if request.action == ReviewAction::Discard {
+            self.clear_transcript();
+            return;
+        }
+        *state = State::Outputting {
+            text: pending.text.clone(),
+        };
+        self.update_state("outputting");
+        let options = output::OutputOptions {
+            pre_output_command: pending.output_config.pre_output_command.as_deref(),
+            post_output_command: pending.output_config.post_output_command.as_deref(),
+            wait_for_modifier_release: pending.output_config.wait_for_modifier_release,
+            modifier_release_timeout: Duration::from_millis(
+                pending.output_config.modifier_release_timeout_ms,
+            ),
+        };
+        match output::output_with_fallback(&pending.chain, &pending.text, options).await {
+            Ok(()) => {
+                self.last_dictation = Some((pending.text.clone(), Instant::now()));
+                self.play_feedback(SoundEvent::TranscriptionComplete);
+                if self.config.output.notification.on_transcription {
+                    output::send_transcription_notification(
+                        &pending.text,
+                        self.config.output.notification.show_engine_icon,
+                        self.config.engine,
+                        &self.config.output.notification.urgency,
+                    )
+                    .await;
+                }
+                self.clear_transcript();
+            }
+            Err(error) => {
+                tracing::error!("Reviewed text delivery failed: {error}");
+                if let Some(publisher) = &self.transcript_publisher {
+                    if let Ok(revision) = publisher.stage_for_review(&pending.text) {
+                        pending.revision = revision;
+                    }
+                }
+                self.pending_delivery = Some(pending);
+            }
+        }
+        *state = State::Idle;
+        self.update_state("idle");
     }
 
     /// Start a streaming-mode audio capture.
@@ -2775,7 +2908,9 @@ impl Daemon {
                     };
 
                     // Track last dictation for context in subsequent post-processing
-                    self.last_dictation = Some((final_text.clone(), Instant::now()));
+                    if !self.config.transcript_popup.review_mode {
+                        self.last_dictation = Some((final_text.clone(), Instant::now()));
+                    }
 
                     if smart_submit {
                         tracing::debug!(
@@ -2804,6 +2939,7 @@ impl Daemon {
                     let shift_enter_override = read_bool_override("shift_enter");
 
                     if let Some(output_path) = file_output_path {
+                        self.last_dictation = Some((final_text.clone(), Instant::now()));
                         *state = State::Outputting {
                             text: final_text.clone(),
                         };
@@ -2930,6 +3066,17 @@ impl Daemon {
                     }
 
                     let output_chain = output::create_output_chain(&output_config);
+
+                    if self.config.transcript_popup.review_mode {
+                        if let Err(error) =
+                            self.queue_review_delivery(final_text, output_chain, output_config)
+                        {
+                            tracing::error!("Could not stage transcript for review: {error}");
+                        }
+                        *state = State::Idle;
+                        self.update_state("idle");
+                        return;
+                    }
 
                     // Output the text
                     *state = State::Outputting {
@@ -3383,7 +3530,7 @@ impl Daemon {
         // Cached transcriber for eager chunk processing during recording
         let mut eager_transcriber: Option<Arc<dyn Transcriber>> = None;
 
-        if self.config.transcript_popup.enabled {
+        if self.config.transcript_popup.enabled || self.config.transcript_popup.review_mode {
             self.config
                 .transcript_popup
                 .validate()
@@ -3395,10 +3542,18 @@ impl Daemon {
                 self.config.transcript_popup.clone(),
             ) {
                 Ok(publisher) => {
+                    if self.config.transcript_popup.review_mode {
+                        publisher.publish("", false)?;
+                    }
                     self.transcript_supervisor_task = Some(
                         crate::osd::supervisor::spawn_transcript(publisher.path().to_path_buf()),
                     );
                     self.transcript_publisher = Some(publisher);
+                }
+                Err(error) if self.config.transcript_popup.review_mode => {
+                    return Err(crate::error::VoxtypeError::Config(format!(
+                        "Review popup unavailable: {error}"
+                    )));
                 }
                 Err(error) => tracing::warn!("Transcript popup unavailable: {error}"),
             }
@@ -3409,8 +3564,13 @@ impl Daemon {
         let mut streaming_session: Option<StreamingSession> = None;
         let mut streaming_chain: Option<Vec<Box<dyn TextOutput>>> = None;
 
+        let mut review_poll = tokio::time::interval(Duration::from_millis(50));
+        review_poll.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             tokio::select! {
+                _ = review_poll.tick(), if state.is_idle() && self.pending_delivery.is_some() => {
+                    self.handle_review_action(&mut state).await;
+                }
                 // Handle hotkey events (only if hotkey listener is enabled)
                 Some(hotkey_event) = async {
                     match &mut hotkey_rx {
@@ -4336,16 +4496,17 @@ impl Daemon {
                         &state,
                         State::Streaming { file_output_path: Some(_), .. }
                     );
+                    let deferred_output = file_output || self.config.transcript_popup.review_mode;
                     match event {
-                        Some(StreamingEvent::Preview { text, .. }) => {
-                            self.publish_transcript(&text, true);
+                        Some(StreamingEvent::Preview { text, words, .. }) => {
+                            self.publish_scored_transcript(&text, &words);
                             if let State::Streaming { partial_buffer, .. } = &mut state {
                                 *partial_buffer = text;
                             }
                         }
                         Some(StreamingEvent::Partial { text, .. }) => {
                             if let Some(s) = streaming_session.as_mut() {
-                                if file_output {
+                                if deferred_output {
                                     s.observe_partial_delta(&text);
                                 } else if let Some(chain) = streaming_chain.as_ref() {
                                     if let Err(e) = s.type_partial_delta(
@@ -4364,7 +4525,7 @@ impl Daemon {
                         }
                         Some(StreamingEvent::Final { text, .. }) => {
                             if let Some(s) = streaming_session.as_mut() {
-                                if file_output {
+                                if deferred_output {
                                     // Raw on purpose: file-mode text is
                                     // processed once, whole, at write time
                                     // in end_streaming — that also catches
@@ -4387,12 +4548,12 @@ impl Daemon {
                                     finalized_text.clear();
                                     finalized_text.push_str(s.finalized_text());
                                 }
-                                self.publish_transcript(s.finalized_text(), false);
+                                self.publish_transcript(s.finalized_text(), self.config.transcript_popup.review_mode);
                             }
                         }
                         Some(StreamingEvent::Replace { backspace, text, .. }) => {
                             if let Some(s) = streaming_session.as_mut() {
-                                if file_output {
+                                if deferred_output {
                                     // Raw on purpose — see the Final arm.
                                     s.replace_and_commit_silent(backspace, &text);
                                 } else if let Some(chain) = streaming_chain.as_ref() {
@@ -4725,6 +4886,14 @@ impl Daemon {
             hub.cleanup();
         }
 
+        if let Some(task) = self.transcript_supervisor_task.take() {
+            task.abort();
+        }
+        if let Some(publisher) = self.transcript_publisher.take() {
+            publisher.clear();
+        }
+        self.pending_delivery = None;
+
         tracing::info!("Daemon stopped");
 
         // Exit without unwinding. Everything this daemon owns is already
@@ -4761,6 +4930,72 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+
+    #[tokio::test]
+    async fn transcript_review_delivers_only_on_approval_and_keeps_popup_open() {
+        use crate::osd::transcript::{
+            request_review_action, ReviewAction, TranscriptPublisher, TranscriptSnapshot,
+        };
+        struct Probe(std::sync::Arc<std::sync::Mutex<Vec<String>>>);
+        #[async_trait::async_trait]
+        impl TextOutput for Probe {
+            async fn output(
+                &self,
+                text: &str,
+            ) -> std::result::Result<(), crate::error::OutputError> {
+                self.0.lock().unwrap().push(text.to_string());
+                Ok(())
+            }
+            async fn is_available(&self) -> bool {
+                true
+            }
+            fn name(&self) -> &'static str {
+                "review-test"
+            }
+        }
+        let directory = TempDir::new().unwrap();
+        let path = directory.path().join("transcript.json");
+        let mut config = Config::default();
+        config.audio.feedback.enabled = false;
+        config.output.notification.on_transcription = false;
+        config.output.wait_for_modifier_release = false;
+        config.transcript_popup.enabled = true;
+        config.transcript_popup.review_mode = true;
+        let mut daemon = Daemon::new(config.clone(), None);
+        daemon.transcript_publisher =
+            Some(TranscriptPublisher::new(path.clone(), config.transcript_popup).unwrap());
+        let delivered = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let mut state = State::Idle;
+        for action in [ReviewAction::Deliver, ReviewAction::Discard] {
+            daemon
+                .queue_review_delivery(
+                    "Reviewed words".to_string(),
+                    vec![Box::new(Probe(delivered.clone()))],
+                    config.output.clone(),
+                )
+                .unwrap();
+            assert!(daemon.start_recording_capture(false).await.is_err());
+            daemon.handle_review_action(&mut state).await;
+            let count_before = delivered.lock().unwrap().len();
+            let snapshot = TranscriptSnapshot::read(&path).unwrap();
+            assert!(snapshot.pending_delivery);
+            request_review_action(&path, snapshot.revision, action).unwrap();
+            daemon.handle_review_action(&mut state).await;
+            assert!(daemon.pending_delivery.is_none());
+            assert_eq!(
+                delivered.lock().unwrap().len(),
+                count_before + usize::from(action == ReviewAction::Deliver)
+            );
+            let snapshot = TranscriptSnapshot::read(&path).unwrap();
+            assert!(snapshot.visible_at(u64::MAX));
+            assert!(!snapshot.pending_delivery && snapshot.text.is_empty());
+            daemon.handle_review_action(&mut state).await;
+            assert!(
+                request_review_action(&path, snapshot.revision, ReviewAction::Deliver).is_err()
+            );
+        }
+        assert_eq!(*delivered.lock().unwrap(), ["Reviewed words"]);
+    }
 
     #[tokio::test]
     async fn streaming_stop_drains_nemotron_audio_but_cuts_live_typing() {

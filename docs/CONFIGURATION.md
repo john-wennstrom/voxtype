@@ -176,12 +176,13 @@ Q8 model under `models/`, or the path in `VOXTYPE_NEMOTRON_MODEL`.
 ## [transcript_popup]
 
 Independent of `[osd]`, this opt-in popup shows Nemotron previews without
-focusing a window or accepting mouse input. Final text is inserted immediately
-when available after release; the display interval does not delay insertion.
+focusing a window. By default it is click-through and inserts final text
+immediately after release; the display interval does not delay insertion.
 
 ```toml
 [transcript_popup]
 enabled = true
+review_mode = false
 font_size = 28.0
 opacity = 1.0
 width_px = 760
@@ -192,6 +193,7 @@ final_display_ms = 2000
 | Field | Default | CLI | Environment |
 |-------|---------|-----|-------------|
 | `enabled` | `false` | `--transcript-popup BOOL` | `VOXTYPE_TRANSCRIPT_POPUP` |
+| `review_mode` | `false` | `--transcript-popup-review BOOL` | `VOXTYPE_TRANSCRIPT_POPUP_REVIEW` |
 | `font_size` | `28.0` | `--transcript-popup-font-size` | `VOXTYPE_TRANSCRIPT_POPUP_FONT_SIZE` |
 | `opacity` | `0.8` | `--transcript-popup-opacity` | `VOXTYPE_TRANSCRIPT_POPUP_OPACITY` |
 | `width_px` | `760` | `--transcript-popup-width` | `VOXTYPE_TRANSCRIPT_POPUP_WIDTH` |
@@ -209,9 +211,41 @@ the sibling `voxtype-osd-native` binary built with `osd-native`. Popup text live
 in a private runtime file, replaced atomically and removed on final expiry,
 cancellation, or normal shutdown; it is not transcript history.
 
+Set `review_mode = true` to keep the popup open while the daemon runs and defer
+interactive text insertion until you click **Deliver**. **Discard** clears the
+draft without inserting it. The popup accepts mouse input but does not take
+keyboard focus: select the destination application before clicking Deliver.
+You can scroll the review text. New recordings are blocked while a draft awaits
+approval, so it cannot be overwritten. After delivery or discard the popup stays
+open with no pending text. Review mode requires `enabled = true` and
+`height_px >= 160`; it ignores `final_display_ms`. File-output commands remain
+automatic. Pending drafts are not saved across daemon restarts.
+
+For the local Nemotron workflow, run `just review`. To enable it permanently in
+the sample config, run `bash scripts/run-nemotron.sh config set
+transcript_popup.review_mode true`, then restart the daemon. The same key is
+available in `voxtype configure` under Transcript Popup. For other config files,
+use `voxtype config set transcript_popup.enabled true` followed by
+`voxtype config set transcript_popup.review_mode true`.
+
+Nemotron previews include overall and per-word confidence, displayed on a 0..100
+scale without an extra setting. The JSON snapshot includes `confidence` and a
+`words` array of `{ "text": "Hello", "confidence": 0.92 }` rows. JSON scores
+use 0..1; unavailable scores are `null`. Each word averages its valid subword
+scores, and the overall score averages the scored words. These are entropy-based
+confidence hints, not calibrated probabilities of correctness. Other engines
+and older snapshots can omit these fields. Numeric annotations are popup-only
+and do not change typed or file-output text.
+
+In review mode the confidence header is always visible. It shows `--/100` when
+no decoder score is available. The overall decoder score remains visible after
+text processing, but word scores are omitted if processing changes the text;
+the retained headline score still describes the original model hypothesis.
+
 Set `enabled = false`, `VOXTYPE_TRANSCRIPT_POPUP=false`, or
 `--transcript-popup false` to hide previews without changing transcription or
-final insertion. Restart the daemon after config-file changes.
+final insertion in automatic mode. Disable `review_mode` as well before hiding
+the popup. Restart the daemon after config-file changes.
 
 ---
 

@@ -1,12 +1,12 @@
 use super::granite::resolve_model_path;
-use super::{StreamHandle, StreamingEvent, StreamingTranscriber, Transcriber};
+use super::{StreamHandle, StreamingEvent, StreamingTranscriber, Transcriber, WordConfidence};
 use crate::config::NemotronConfig;
 use crate::error::TranscribeError;
 use std::sync::Mutex;
 use tokio::sync::{mpsc, oneshot};
 use transcribe_cpp::{
     Backend, Model, ModelOptions, ParakeetStreamOptions, RunOptions, Session, StreamExtension,
-    StreamOptions, TimestampKind,
+    StreamOptions, TimestampKind, Transcript,
 };
 
 pub struct NemotronTranscriber {
@@ -139,7 +139,7 @@ fn drive_stream(
     let runtime = tokio::runtime::Handle::current();
     let chunk_samples = settings.streaming_chunk_ms as usize * 16;
     let mut pending = Vec::with_capacity(chunk_samples * 2);
-    let mut last_preview = String::new();
+    let mut last_preview = None;
     let mut cancelled = false;
     let mut cancellation_open = true;
     loop {
@@ -168,11 +168,21 @@ fn drive_stream(
             pending.drain(..chunk_samples);
             if update.result_changed {
                 let text = stream.text().display();
-                if text != last_preview {
-                    last_preview = text.clone();
-                    if events_tx.blocking_send(preview_event(text)).is_err() {
+                let snapshot = stream.snapshot();
+                let words = if snapshot.text.trim() == text.trim() {
+                    word_confidences(&snapshot)
+                } else {
+                    Vec::new()
+                };
+                let preview = (text, words);
+                if last_preview.as_ref() != Some(&preview) {
+                    if events_tx
+                        .blocking_send(preview_event(preview.0.clone(), preview.1.clone()))
+                        .is_err()
+                    {
                         return Ok(());
                     }
+                    last_preview = Some(preview);
                 }
             }
         }
@@ -184,8 +194,15 @@ fn drive_stream(
         stream.feed(&pending).map_err(native_error)?;
     }
     stream.finalize().map_err(native_error)?;
+    let snapshot = stream.snapshot();
     let text = stream.text().full.trim().to_string();
     if !text.is_empty() {
+        let words = if snapshot.text.trim() == text {
+            word_confidences(&snapshot)
+        } else {
+            Vec::new()
+        };
+        let _ = events_tx.blocking_send(preview_event(text.clone(), words));
         let _ = events_tx.blocking_send(StreamingEvent::Final {
             text,
             segment_id: 0,
@@ -194,17 +211,65 @@ fn drive_stream(
     Ok(())
 }
 
-fn preview_event(text: String) -> StreamingEvent {
+fn preview_event(text: String, words: Vec<WordConfidence>) -> StreamingEvent {
     StreamingEvent::Preview {
         text,
         segment_id: 0,
+        words,
     }
+}
+
+fn word_confidences(snapshot: &Transcript) -> Vec<WordConfidence> {
+    let mut words = Vec::new();
+    let mut text = String::new();
+    let mut sum = 0.0;
+    let mut count = 0;
+    let finish_word =
+        |words: &mut Vec<WordConfidence>, text: &mut String, sum: f32, count: usize| {
+            if !text.is_empty() {
+                words.push(WordConfidence {
+                    text: std::mem::take(text),
+                    confidence: (count > 0).then(|| sum / count as f32),
+                });
+            }
+        };
+    for token in &snapshot.tokens {
+        let score = token.p.is_finite().then(|| token.p.clamp(0.0, 1.0));
+        let mut token_in_word = false;
+        for character in token.text.chars() {
+            if character.is_whitespace() {
+                finish_word(&mut words, &mut text, sum, count);
+                sum = 0.0;
+                count = 0;
+                token_in_word = false;
+            } else {
+                text.push(character);
+                if !token_in_word {
+                    if let Some(score) = score {
+                        sum += score;
+                        count += 1;
+                    }
+                    token_in_word = true;
+                }
+            }
+        }
+    }
+    finish_word(&mut words, &mut text, sum, count);
+    if words
+        .iter()
+        .map(|word| word.text.as_str())
+        .collect::<Vec<_>>()
+        != snapshot.text.split_whitespace().collect::<Vec<_>>()
+    {
+        return Vec::new();
+    }
+    words
 }
 
 fn run_options() -> RunOptions {
     RunOptions {
         language: Some("en".to_string()),
-        timestamps: TimestampKind::None,
+        timestamps: TimestampKind::Token,
         ..Default::default()
     }
 }
@@ -286,7 +351,9 @@ mod tests {
                 .unwrap()
                 .unwrap();
             assert!(
-                matches!(preview, StreamingEvent::Preview { text, .. } if !text.trim().is_empty())
+                matches!(preview, StreamingEvent::Preview { text, words, .. }
+                if !text.trim().is_empty() && !words.is_empty()
+                    && words.iter().any(|word| word.confidence.is_some()))
             );
             if cancel {
                 cancel_sender.send(()).unwrap();
@@ -332,9 +399,56 @@ mod tests {
             tentative: "world".to_string(),
         };
         assert!(matches!(
-            preview_event(snapshot.display()),
-            StreamingEvent::Preview { text, segment_id: 0 } if text == "Hello world"
+            preview_event(snapshot.display(), Vec::new()),
+            StreamingEvent::Preview { text, segment_id: 0, .. } if text == "Hello world"
         ));
+    }
+
+    #[test]
+    fn nemotron_confidence_groups_subwords_and_ignores_missing_scores() {
+        let snapshot = Transcript {
+            text: "Hello world unknown".to_string(),
+            tokens: vec![
+                transcribe_cpp::Token {
+                    text: " Hel".to_string(),
+                    p: 0.9,
+                    ..Default::default()
+                },
+                transcribe_cpp::Token {
+                    text: "lo".to_string(),
+                    p: 0.7,
+                    ..Default::default()
+                },
+                transcribe_cpp::Token {
+                    text: " world".to_string(),
+                    p: 0.6,
+                    ..Default::default()
+                },
+                transcribe_cpp::Token {
+                    text: " unknown".to_string(),
+                    p: f32::NAN,
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+        let words = word_confidences(&snapshot);
+        assert_eq!(
+            words
+                .iter()
+                .map(|word| word.text.as_str())
+                .collect::<Vec<_>>(),
+            ["Hello", "world", "unknown"]
+        );
+        assert!((words[0].confidence.unwrap() - 0.8).abs() < 1e-6);
+        assert_eq!(words[1].confidence, Some(0.6));
+        assert_eq!(words[2].confidence, None);
+        let revised = Transcript {
+            text: "Different hypothesis".to_string(),
+            ..snapshot
+        };
+        assert!(word_confidences(&revised).is_empty());
+        assert!(word_confidences(&Transcript::default()).is_empty());
     }
 
     #[test]

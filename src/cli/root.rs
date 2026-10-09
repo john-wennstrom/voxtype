@@ -204,6 +204,10 @@ pub struct Cli {
     #[arg(long, value_name = "BOOL", help_heading = "Transcript Popup")]
     pub transcript_popup: Option<bool>,
 
+    /// Keep the popup open and require Deliver before inserting reviewed text
+    #[arg(long, value_name = "BOOL", help_heading = "Transcript Popup")]
+    pub transcript_popup_review: Option<bool>,
+
     /// Transcript popup text size in pixels (12..72)
     #[arg(long, value_name = "PX", help_heading = "Transcript Popup")]
     pub transcript_popup_font_size: Option<f32>,

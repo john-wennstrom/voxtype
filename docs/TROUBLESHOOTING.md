@@ -4,6 +4,7 @@ Solutions to common issues when using Voxtype.
 
 ## Table of Contents
 
+- [Transcript Review (Fork)](#transcript-review-fork)
 - [Modifier Key Interference (Hyprland/Sway/River)](#modifier-key-interference-hyprlandswayriver)
 - [Hotkey Detection on KDE Plasma](#hotkey-detection-on-kde-plasma)
 - [Permission Issues](#permission-issues)
@@ -22,6 +23,25 @@ Solutions to common issues when using Voxtype.
 - [Debug Mode](#debug-mode)
 
 ---
+
+## Transcript Review (Fork)
+
+### Dictation stays in the popup instead of being inserted
+
+With `[transcript_popup] review_mode = true`, release finalizes a draft rather
+than inserting it. Select the destination application and click **Deliver**.
+Click **Discard** to clear the draft without output. New recordings are blocked
+until that decision, and the popup remains open afterward.
+
+To restore automatic insertion in the local Nemotron setup, run
+`bash scripts/run-nemotron.sh config set transcript_popup.review_mode false`
+and restart with `just`, not `just review` (which forces review mode on).
+
+If review startup reports a configuration error, ensure the popup is enabled
+and its height is at least 160 pixels. Rebuild both binaries with
+`just build-nemotron` if buttons are missing. The confidence header stays visible;
+`--/100` means the decoder did not supply a score for the current text, not zero
+confidence. Drafts are cleared on daemon shutdown rather than saved to disk.
 
 ## Modifier Key Interference (Hyprland/Sway/River)
 

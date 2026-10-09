@@ -101,6 +101,12 @@ pub struct TimedSegment {
     pub end_secs: f32,
 }
 
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct WordConfidence {
+    pub text: String,
+    pub confidence: Option<f32>,
+}
+
 /// Trait for speech-to-text implementations
 pub trait Transcriber: Send + Sync {
     /// Transcribe audio samples to text

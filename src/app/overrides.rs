@@ -116,6 +116,9 @@ pub(crate) fn apply_cli_overrides(config: &mut config::Config, cli: &Cli) -> Opt
     if let Some(enabled) = cli.transcript_popup {
         config.transcript_popup.enabled = enabled;
     }
+    if let Some(review_mode) = cli.transcript_popup_review {
+        config.transcript_popup.review_mode = review_mode;
+    }
     if let Some(size) = cli.transcript_popup_font_size {
         config.transcript_popup.font_size = size;
     }
@@ -377,6 +380,25 @@ pub(crate) fn apply_cli_overrides(config: &mut config::Config, cli: &Cli) -> Opt
 mod tests {
     use super::*;
     use clap::Parser;
+
+    #[test]
+    fn transcript_popup_review_cli_overrides_config() {
+        for value in ["true", "false"] {
+            let cli = Cli::try_parse_from([
+                "voxtype",
+                "--transcript-popup",
+                "true",
+                "--transcript-popup-review",
+                value,
+            ])
+            .unwrap();
+            let mut settings = config::Config::default();
+            settings.transcript_popup.review_mode = value != "true";
+            apply_cli_overrides(&mut settings, &cli);
+            assert_eq!(settings.transcript_popup.review_mode, value == "true");
+            assert!(settings.transcript_popup.validate().is_ok());
+        }
+    }
 
     #[test]
     fn nemotron_cli_popup_off_keeps_streaming_and_hold_to_talk() {

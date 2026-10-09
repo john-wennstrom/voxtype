@@ -294,6 +294,7 @@ pub const REPLACEMENTS_TABLE: &str = "text.replacements";
 
 pub const CONFIG_KEYS: &[KeySpec] = &[
     spec("transcript_popup.enabled", "transcript_popup", "enabled", KeyType::Bool, "Transcript Popup", "Enabled", "Preview text in a centered, non-focusing popup; does not change insertion."),
+    spec("transcript_popup.review_mode", "transcript_popup", "review_mode", KeyType::Bool, "Transcript Popup", "Review before delivery", "Keep the popup open and insert text only after Deliver; requires Enabled."),
     spec("transcript_popup.font_size", "transcript_popup", "font_size", KeyType::Float { min: 12.0, max: 72.0 }, "Transcript Popup", "Font size", "Dark transcript text size in pixels."),
     spec("transcript_popup.opacity", "transcript_popup", "opacity", KeyType::Float { min: 0.0, max: 1.0 }, "Transcript Popup", "Opacity", "White background opacity."),
     spec("transcript_popup.width_px", "transcript_popup", "width_px", KeyType::Int { min: 240, max: 1920 }, "Transcript Popup", "Width", "Maximum width, constrained to the output."),
@@ -1712,6 +1713,7 @@ pub fn resolve(key: &str, cfg: &Config) -> Option<Json> {
     let v = match key {
         "engine" => json!(cfg.engine.name()),
         "transcript_popup.enabled" => json!(cfg.transcript_popup.enabled),
+        "transcript_popup.review_mode" => json!(cfg.transcript_popup.review_mode),
         "transcript_popup.font_size" => json!(cfg.transcript_popup.font_size),
         "transcript_popup.opacity" => json!(cfg.transcript_popup.opacity),
         "transcript_popup.width_px" => json!(cfg.transcript_popup.width_px),
