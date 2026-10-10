@@ -71,6 +71,93 @@ pub(crate) async fn dispatch(
             let mut daemon = daemon::Daemon::new(config, config_path);
             daemon.run().await?;
         }
+        Commands::Lexicon { action } => {
+            use voxtype::cli::LexiconAction;
+            use voxtype_lexicon::{alphabet, build, PhoneticIndex, Scratch, SearchOpts};
+            match action {
+                LexiconAction::Build {
+                    variants,
+                    query_dict,
+                    output,
+                    project,
+                } => {
+                    let output = match (output, project) {
+                        (Some(output), _) => output,
+                        (_, Some(project)) => config::LexiconConfig::project_index_path(&project)
+                            .map_err(anyhow::Error::msg)?,
+                        _ => config.lexicon.index_path().map_err(anyhow::Error::msg)?,
+                    };
+                    build::from_tsv(&variants, &query_dict, &output)?;
+                    let index = PhoneticIndex::open(&output)?;
+                    println!(
+                        "Built {} terms, {} variants: {}",
+                        index.term_count(),
+                        index.variant_count(),
+                        output.display()
+                    );
+                }
+                LexiconAction::Use { path, clear } => {
+                    let active_file =
+                        config::LexiconConfig::active_project_file().map_err(anyhow::Error::msg)?;
+                    if clear {
+                        match std::fs::remove_file(active_file) {
+                            Ok(()) => (),
+                            Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+                            Err(error) => return Err(error.into()),
+                        }
+                        println!("Selected user lexicon only");
+                    } else {
+                        let project = path
+                            .ok_or_else(|| anyhow::anyhow!("Provide a project path or --clear"))?
+                            .canonicalize()?;
+                        anyhow::ensure!(
+                            project.join(".voxtype/terms.tsv").is_file(),
+                            "Project must contain .voxtype/terms.tsv"
+                        );
+                        let index = config::LexiconConfig::project_index_path(&project)
+                            .map_err(anyhow::Error::msg)?;
+                        PhoneticIndex::open(&index)?;
+                        let parent = active_file
+                            .parent()
+                            .ok_or_else(|| anyhow::anyhow!("Invalid active-project path"))?;
+                        std::fs::create_dir_all(parent)?;
+                        let mut file = tempfile::NamedTempFile::new_in(parent)?;
+                        use std::io::Write;
+                        writeln!(
+                            file,
+                            "{}",
+                            project
+                                .to_str()
+                                .ok_or_else(|| anyhow::anyhow!("Project path must be UTF-8"))?
+                        )?;
+                        file.as_file().sync_all()?;
+                        file.persist(active_file).map_err(|error| error.error)?;
+                        println!("Selected project lexicon: {}", project.display());
+                    }
+                }
+                LexiconAction::Query { phones, index } => {
+                    let path = index.map(Ok).unwrap_or_else(|| {
+                        config.lexicon.index_path().map_err(anyhow::Error::msg)
+                    })?;
+                    let index = PhoneticIndex::open(&path)?;
+                    let mut candidates = Vec::with_capacity(8);
+                    index.search(
+                        &alphabet::parse(&phones)?,
+                        &SearchOpts::default(),
+                        &mut Scratch::new(&index),
+                        &mut candidates,
+                    );
+                    for candidate in candidates {
+                        println!(
+                            "{}\t{:.3}\t{}",
+                            index.term(candidate.term).canonical,
+                            candidate.sim,
+                            candidate.cost
+                        );
+                    }
+                }
+            }
+        }
         #[cfg(target_os = "macos")]
         Commands::Menubar => {
             let state_file = config

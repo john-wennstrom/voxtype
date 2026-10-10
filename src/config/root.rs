@@ -85,6 +85,9 @@ pub struct Config {
     #[serde(default)]
     pub text: TextConfig,
 
+    #[serde(default)]
+    pub lexicon: super::LexiconConfig,
+
     /// Voice Activity Detection configuration
     /// When enabled, filters silence-only recordings before transcription
     #[serde(default)]
@@ -141,6 +144,7 @@ impl Default for Config {
             soniox: None,
             streaming: None,
             text: TextConfig::default(),
+            lexicon: super::LexiconConfig::default(),
             vad: VadConfig::default(),
             status: StatusConfig::default(),
             osd: crate::osd::config::OsdConfig::default(),
@@ -189,6 +193,14 @@ impl Config {
             // libinput's held-key tracking on Hyprland/Sway/River.
             TranscriptionEngine::OpenVino => {
                 self.openvino.as_ref().map(|o| o.streaming).unwrap_or(false)
+            }
+            TranscriptionEngine::Nemotron => {
+                self.lexicon.enabled
+                    && self.lexicon.streaming.commit != voxtype_lexicon::stream::CommitMode::Eou
+                    && self
+                        .nemotron
+                        .as_ref()
+                        .is_some_and(|settings| settings.streaming)
             }
             _ => false,
         }

@@ -258,6 +258,7 @@ impl TranscriptPublisher {
                 confidence: word
                     .confidence
                     .filter(|score| score.is_finite() && (0.0..=1.0).contains(score)),
+                lexicon: word.lexicon,
             })
             .collect();
         let scores: Vec<_> = words.iter().filter_map(|word| word.confidence).collect();
@@ -468,6 +469,7 @@ mod tests {
             .map(|word| WordConfidence {
                 text: word.to_string(),
                 confidence: Some(if word == "quiet" { 0.54 } else { 0.92 }),
+                lexicon: word == "quiet",
             })
             .collect();
         publisher.publish_scored(text, true, &words).unwrap();
@@ -607,6 +609,7 @@ mod tests {
             .map(|word| WordConfidence {
                 text: word.to_string(),
                 confidence: Some(if word == "quiet" { 0.54 } else { 0.92 }),
+                lexicon: word == "quiet",
             })
             .collect();
         publisher.publish_scored(text, true, &words).unwrap();
@@ -747,14 +750,17 @@ mod tests {
             WordConfidence {
                 text: "Hello".to_string(),
                 confidence: Some(0.8),
+                lexicon: true,
             },
             WordConfidence {
                 text: "world".to_string(),
                 confidence: Some(0.6),
+                lexicon: false,
             },
             WordConfidence {
                 text: "unknown".to_string(),
                 confidence: Some(f32::NAN),
+                lexicon: false,
             },
         ];
         publisher
@@ -787,6 +793,11 @@ mod tests {
         .unwrap();
         assert_eq!(snapshot.confidence, None);
         assert!(snapshot.words.is_empty());
+        let word: WordConfidence = serde_json::from_value(serde_json::json!({
+            "text": "hello", "confidence": 0.9
+        }))
+        .unwrap();
+        assert!(!word.lexicon);
     }
 
     #[test]
@@ -829,6 +840,7 @@ mod tests {
             let words = [WordConfidence {
                 text: "hello".to_string(),
                 confidence: Some(0.85),
+                lexicon: true,
             }];
             publisher.publish_scored("hello", true, &words).unwrap();
             publisher.publish_scored("hello", true, &[]).unwrap();
@@ -868,10 +880,12 @@ mod tests {
                     WordConfidence {
                         text: "hello".to_string(),
                         confidence: Some(0.8),
+                        lexicon: false,
                     },
                     WordConfidence {
                         text: "world".to_string(),
                         confidence: Some(0.6),
+                        lexicon: false,
                     },
                 ],
             )

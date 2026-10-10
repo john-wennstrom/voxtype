@@ -8,6 +8,7 @@
 mod commands;
 mod config;
 mod info;
+mod lexicon;
 mod meeting;
 mod record;
 mod root;
@@ -16,6 +17,7 @@ mod setup;
 pub use commands::Commands;
 pub use config::ConfigAction;
 pub use info::InfoAction;
+pub use lexicon::LexiconAction;
 pub use meeting::MeetingAction;
 pub use record::{OutputModeOverride, RecordAction};
 pub use root::Cli;

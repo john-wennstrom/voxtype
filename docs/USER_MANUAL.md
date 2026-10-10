@@ -14,6 +14,7 @@ Voxtype is a push-to-talk voice-to-text tool for Linux. Optimized for Wayland, w
 - [Transcription Engines](#transcription-engines)
 - [Multi-Model Support](#multi-model-support)
 - [Improving Transcription Accuracy](#improving-transcription-accuracy)
+- [Phonetic Lexicons](#phonetic-lexicons)
 - [Whisper Models](#whisper-models)
 - [Remote Whisper Servers](#remote-whisper-servers)
 - [CLI Backend (whisper-cli)](#cli-backend-whisper-cli)
@@ -28,6 +29,115 @@ Voxtype is a push-to-talk voice-to-text tool for Linux. Optimized for Wayland, w
 - [Integration Examples](#integration-examples)
 
 ---
+
+## Phonetic Lexicons
+
+This fork can correct uncertain English Nemotron output to domain terms such
+as `kubectl` and `nginx`. It is disabled by default and runs before insertion.
+Other engines do not use this layer. Build with `nemotron` or `nemotron-cuda`.
+
+Create `~/.config/voxtype/lexicon/terms.tsv`. Columns are separated by literal
+tabs: canonical spelling, optional spoken forms separated by `|`, and optional
+weight in `(0, 1]`. Lines beginning with `#` are comments. See
+`examples/lexicon/terms.tsv` for examples.
+
+The Python generator is an offline development tool, not a daemon dependency:
+
+```bash
+python3 -m venv .venv-lexicon
+.venv-lexicon/bin/pip install -r tools/requirements-lexicon.txt
+.venv-lexicon/bin/python tools/lexicon_g2p.py \
+  ~/.config/voxtype/lexicon/terms.tsv /tmp/lexicon.phon.tsv \
+  --export-query-dict /tmp/querydict.phon.tsv
+voxtype lexicon build /tmp/lexicon.phon.tsv --query-dict /tmp/querydict.phon.tsv
+voxtype config set lexicon.enabled true
+voxtype config set lexicon.streaming.commit eou
+```
+
+Restart the daemon after changing configuration. The default index is
+`~/.cache/voxtype/lexicon/user.vxl`. Rebuilding replaces it atomically; the
+running corrector reloads between utterances. Never edit or truncate a live
+`.vxl` in place. `--backend none` uses only CMUdict; `--backend espeak` uses
+the separately installed `espeak-ng` for unknown words. `--workers 1` disables
+the generator's process pool. Explicit spoken variants survive the variant cap.
+
+For streaming, `lag` is the lexicon default: it holds at least three complete,
+stable words before insertion and corrects that untyped tail. An incomplete
+last word is held too. `eou` keeps the existing preview-until-release workflow
+and allows optional Jev selection before insertion. `off` inserts complete
+stable words without correction. Live modes enable the existing automatic
+toggle-hotkey safety rule; compositor bindings should likewise use toggle
+rather than hold-to-talk. Review mode continues to defer insertion.
+
+The native preview popup underlines words selected from the lexicon in blue.
+Unchanged words are not underlined. Lexicon replacements do not show a model
+confidence score, since Nemotron scored the original words, not the replacement.
+In `eou` mode, phonetic picks appear in the preview while recording; final
+correction and optional Jev selection still happen on release. Terminal logs
+report word confidence percentages, lexicon lookups, and selected replacements.
+
+Project lexicons use `<project>/.voxtype/terms.tsv`. Generate its pronunciation
+TSV the same way, then build and select it:
+
+From this checkout, generate project TSVs with:
+
+```bash
+just lexicon-setup
+just lexicon-generate
+```
+
+The setup command installs the offline generator's dependencies into
+`.venv-lexicon` and downloads the required NLTK taggers and CMUdict before
+generation workers start. NLTK data is cached in a private
+`../.voxtype-nltk-data` directory beside the checkout. Set
+`VOXTYPE_NLTK_DATA` to use another private directory; its ancestors must
+not be group- or world-writable. Generation also checks these resources,
+so existing environments are repaired automatically.
+Generation seeds `.voxtype/terms.tsv` from
+`examples/lexicon/words.txt` only if the project term file does not exist,
+then writes `.voxtype/terms.phon.tsv` and `.voxtype/querydict.phon.tsv`.
+Edit `.voxtype/terms.tsv` to customize subsequent generations. Use
+`just lexicon-generate /path/to/project` for another project, or append
+`espeak` to use that backend. Generation does not build or select an index.
+
+```bash
+voxtype lexicon build /tmp/project.phon.tsv \
+  --query-dict /tmp/querydict.phon.tsv --project /path/to/project
+voxtype lexicon use /path/to/project
+voxtype lexicon use --clear
+```
+
+Project spelling and weight override matching user entries; pronunciations
+from both remain searchable. A line `!term` suppresses that user term. A
+configured `lexicon.project` takes precedence over `lexicon use`. Project
+switches and rebuilt indexes take effect between utterances, not while words
+are being committed. Automatic focused-window project detection is not yet
+implemented.
+
+Inspect retrieval without a model:
+
+```bash
+voxtype lexicon query "K Y UW B K AH N T R OW L"
+```
+
+Jev is optional and sends the current and previous utterance to TypeSafe.
+Set `TYPESAFE_API_KEY` in the daemon's environment and enable
+`lexicon.jev.enabled` only when this is acceptable. The request has a 300 ms
+default timeout and no retries; failures keep the local decision. Lag/off
+streaming never calls Jev. Put this in a project's `.voxtype/config` to
+prevent remote selection there:
+
+```toml
+[lexicon.jev]
+enabled = false
+```
+
+The current implementation performs text-level correction, not acoustic
+boosting or a second decode. The pinned `transcribe.cpp` API lacks those
+capabilities. Local GGUF selection and learned pronunciation/cost updates are
+not implemented. Term descriptions in a fourth source column are currently
+ignored. Accuracy thresholds are defaults, not calibrated guarantees; test
+your terms and ordinary-word collisions before enabling live insertion.
 
 ## Getting Started
 

@@ -1023,6 +1023,16 @@ pub const CONFIG_KEYS: &[KeySpec] = &[
         "Word replacements",
         "Case-insensitive substitutions applied to the transcription, keyed by the spoken form.",
     ),
+    spec("lexicon.enabled", "lexicon", "enabled", KeyType::Bool, "Text", "Phonetic lexicon", "Correct uncertain English Nemotron words using a personal phonetic index.").for_engine("nemotron").gated("nemotron"),
+    spec("lexicon.index", "lexicon", "index", KeyType::String, "Text", "Lexicon index", "Path to the user .vxl index; unset uses the voxtype cache directory.").for_engine("nemotron").gated("nemotron"),
+    spec("lexicon.project", "lexicon", "project", KeyType::String, "Text", "Lexicon project", "Explicit project directory; overrides the project selected by lexicon use.").for_engine("nemotron").gated("nemotron"),
+    spec("lexicon.confidence_threshold", "lexicon", "confidence_threshold", KeyType::Float { min: 0.0, max: 1.0 }, "Text", "Lexicon confidence gate", "Search words below this confidence; common short words use a stricter gate.").for_engine("nemotron").gated("nemotron"),
+    spec("lexicon.similarity_threshold", "lexicon", "similarity_threshold", KeyType::Float { min: 0.0, max: 1.0 }, "Text", "Lexicon similarity", "Minimum phonetic similarity for automatic replacement.").for_engine("nemotron").gated("nemotron"),
+    spec("lexicon.streaming.commit", "lexicon.streaming", "commit", KeyType::Enum { choices: &["lag", "eou", "off"], open: false }, "Text", "Lexicon commit mode", "Lag holds three stable words; eou commits on release; off commits stable words without correction.").for_engine("nemotron").gated("nemotron"),
+    spec("lexicon.jev.enabled", "lexicon.jev", "enabled", KeyType::Bool, "Text", "Jev selection", "Opt in to sending current and previous dictation to TypeSafe for ambiguous spans; requires TYPESAFE_API_KEY.").for_engine("nemotron").gated("nemotron"),
+    spec("lexicon.jev.model", "lexicon.jev", "model", KeyType::String, "Text", "Jev model", "TypeSafe model alias, normally jev-latest.").for_engine("nemotron").gated("nemotron"),
+    spec("lexicon.jev.timeout_ms", "lexicon.jev", "timeout_ms", KeyType::Int { min: 1, max: 10000 }, "Text", "Jev timeout", "Hard request timeout in milliseconds; failures preserve the lexicon decision without retries.").for_engine("nemotron").gated("nemotron"),
+    spec("lexicon.jev.confidence_threshold", "lexicon.jev", "confidence_threshold", KeyType::Float { min: 0.0, max: 1.0 }, "Text", "Jev confidence", "Minimum selector confidence before combining context and phonetic evidence.").for_engine("nemotron").gated("nemotron"),
     // -- VAD ----------------------------------------------------------------
     spec(
         "vad.enabled",
@@ -1863,6 +1873,17 @@ pub fn resolve(key: &str, cfg: &Config) -> Option<Json> {
                 .collect();
             Json::Object(map)
         }
+
+        "lexicon.enabled" => json!(cfg.lexicon.enabled),
+        "lexicon.index" => json!(cfg.lexicon.index),
+        "lexicon.project" => json!(cfg.lexicon.project),
+        "lexicon.confidence_threshold" => f32_json(cfg.lexicon.confidence_threshold),
+        "lexicon.similarity_threshold" => f32_json(cfg.lexicon.similarity_threshold),
+        "lexicon.streaming.commit" => serde_json::to_value(cfg.lexicon.streaming.commit).ok()?,
+        "lexicon.jev.enabled" => json!(cfg.lexicon.jev.enabled),
+        "lexicon.jev.model" => json!(cfg.lexicon.jev.model),
+        "lexicon.jev.timeout_ms" => json!(cfg.lexicon.jev.timeout_ms),
+        "lexicon.jev.confidence_threshold" => f32_json(cfg.lexicon.jev.confidence_threshold),
 
         "vad.enabled" => json!(cfg.vad.enabled),
         "vad.backend" => serde_json::to_value(cfg.vad.backend).ok()?,

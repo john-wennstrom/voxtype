@@ -11,6 +11,7 @@ mod default_config;
 mod engines;
 mod hotkey;
 mod language;
+mod lexicon;
 mod load;
 mod meeting;
 mod notification;
@@ -34,6 +35,7 @@ pub use engines::{
 };
 pub use hotkey::{ActivationMode, HotkeyConfig};
 pub use language::LanguageConfig;
+pub use lexicon::{JevConfig, LexiconConfig};
 pub use load::{load_config, save_config};
 pub use meeting::{
     MeetingAudioConfig, MeetingConfig, MeetingDiarizationConfig, MeetingSummaryConfig,

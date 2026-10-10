@@ -37,6 +37,41 @@ fn apply_bool_override(target: &mut bool, enable: bool, disable: bool) {
 pub(crate) fn apply_cli_overrides(config: &mut config::Config, cli: &Cli) -> Option<String> {
     let top_level_model = cli.model.clone();
 
+    apply_bool_override(&mut config.lexicon.enabled, cli.lexicon, cli.no_lexicon);
+    if let Some(ref index) = cli.lexicon_index {
+        config.lexicon.index = Some(index.clone());
+    }
+    if let Some(ref project) = cli.lexicon_project {
+        config.lexicon.project = Some(project.clone());
+    }
+    if let Some(ref mode) = cli.lexicon_streaming_commit {
+        config.lexicon.streaming.commit = match mode.as_str() {
+            "lag" => voxtype_lexicon::stream::CommitMode::Lag,
+            "off" => voxtype_lexicon::stream::CommitMode::Off,
+            _ => voxtype_lexicon::stream::CommitMode::Eou,
+        };
+    }
+    if let Some(threshold) = cli.lexicon_confidence_threshold {
+        config.lexicon.confidence_threshold = threshold;
+    }
+    if let Some(threshold) = cli.lexicon_similarity_threshold {
+        config.lexicon.similarity_threshold = threshold;
+    }
+    apply_bool_override(
+        &mut config.lexicon.jev.enabled,
+        cli.lexicon_jev,
+        cli.no_lexicon_jev,
+    );
+    if let Some(ref model) = cli.lexicon_jev_model {
+        config.lexicon.jev.model = model.clone();
+    }
+    if let Some(timeout) = cli.lexicon_jev_timeout_ms {
+        config.lexicon.jev.timeout_ms = timeout;
+    }
+    if let Some(threshold) = cli.lexicon_jev_confidence_threshold {
+        config.lexicon.jev.confidence_threshold = threshold;
+    }
+
     if cli.clipboard {
         config.output.mode = config::OutputMode::Clipboard;
     }

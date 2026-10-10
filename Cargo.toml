@@ -1,5 +1,5 @@
 [workspace]
-members = ["xtask"]
+members = ["xtask", "crates/voxtype-lexicon"]
 
 [package]
 name = "voxtype"
@@ -41,6 +41,7 @@ strum = { version = "0.26", default-features = false, features = ["derive"] }
 
 # Text processing
 regex = "1"
+voxtype-lexicon = { path = "crates/voxtype-lexicon" }
 
 # Async traits
 async-trait = "0.1"

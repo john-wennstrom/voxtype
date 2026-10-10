@@ -1,0 +1,24 @@
+[package]
+name = "voxtype-lexicon"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Memory-mapped English phonetic retrieval for voxtype"
+
+[dependencies]
+anyhow = "1"
+bytemuck = { version = "1", features = ["derive", "min_const_generics"] }
+fst = "0.4"
+memmap2 = "0.9"
+smallvec = "1"
+serde = { version = "1", features = ["derive"] }
+tempfile = "3"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+
+[dev-dependencies]
+criterion = "0.5"
+proptest = "1"
+
+[[bench]]
+name = "retrieval"
+harness = false

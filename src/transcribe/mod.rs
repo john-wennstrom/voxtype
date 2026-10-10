@@ -105,7 +105,14 @@ pub struct TimedSegment {
 pub struct WordConfidence {
     pub text: String,
     pub confidence: Option<f32>,
+    #[serde(default)]
+    pub lexicon: bool,
 }
+
+#[cfg(feature = "granite")]
+mod lexicon;
+#[cfg(feature = "granite")]
+mod lexicon_select;
 
 /// Trait for speech-to-text implementations
 pub trait Transcriber: Send + Sync {
@@ -172,8 +179,9 @@ pub trait Transcriber: Send + Sync {
 pub fn create_transcriber(config: &Config) -> Result<Box<dyn Transcriber>, TranscribeError> {
     match config.engine {
         #[cfg(feature = "granite")]
-        TranscriptionEngine::Nemotron => Ok(Box::new(nemotron::NemotronTranscriber::new(
+        TranscriptionEngine::Nemotron => Ok(Box::new(nemotron::NemotronTranscriber::new_with_lexicon(
             &config.nemotron.clone().unwrap_or_default(),
+            &config.lexicon,
         )?)),
         #[cfg(not(feature = "granite"))]
         TranscriptionEngine::Nemotron => Err(TranscribeError::InitFailed(

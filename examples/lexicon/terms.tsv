@@ -1,0 +1,6 @@
+# canonical<TAB>spoken forms<TAB>weight<TAB>optional description
+kubectl	cube control | cube c t l | kube cuttle	1.0	Kubernetes command-line tool
+nginx	engine x	1.0	Web server and reverse proxy
+PostgreSQL	postgres q l | postgres	1.0	Relational database
+useEffect	use effect	0.8	React effect hook
+JSON	jay son | j s o n	1.0	Structured data format

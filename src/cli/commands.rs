@@ -122,6 +122,12 @@ pub enum Commands {
         action: InfoAction,
     },
 
+    /// Build or inspect personal phonetic lexicons
+    Lexicon {
+        #[command(subcommand)]
+        action: super::LexiconAction,
+    },
+
     /// Open the interactive configuration TUI
     Configure {
         /// Render as if installed from a package (for testing source builds).

@@ -5,6 +5,7 @@ Solutions to common issues when using Voxtype.
 ## Table of Contents
 
 - [Transcript Review (Fork)](#transcript-review-fork)
+- [Phonetic Lexicons (Fork)](#phonetic-lexicons-fork)
 - [Modifier Key Interference (Hyprland/Sway/River)](#modifier-key-interference-hyprlandswayriver)
 - [Hotkey Detection on KDE Plasma](#hotkey-detection-on-kde-plasma)
 - [Permission Issues](#permission-issues)
@@ -23,6 +24,42 @@ Solutions to common issues when using Voxtype.
 - [Debug Mode](#debug-mode)
 
 ---
+
+## Phonetic Lexicons (Fork)
+
+### Cannot load lexicon, stale hash, or checksum mismatch
+
+Rebuild using `tools/lexicon_g2p.py` and `voxtype lexicon build`. For a project,
+pass the same `--project /path/to/project` used by `lexicon use`. Delete no
+live index manually: the builder writes, syncs, and atomically renames its
+replacement. Invalid rebuilds leave the previous mapped index in use. Disable
+the feature temporarily with `--no-lexicon`.
+
+### A domain term is not corrected
+
+Use `voxtype lexicon query "<ARPAbet phones>"` to inspect retrieval. Add the
+actual spoken form in the second tab-separated source column and rebuild.
+Only uncertain words are corrected; missing decoder confidence is not treated
+as zero. Common words such as `get` require another domain cue or a recent
+accepted correction before becoming jargon. `commit = "off"` deliberately
+disables streaming corrections. No decoder boosting is implemented yet.
+
+### Jev selection is unavailable
+
+The daemon needs `TYPESAFE_API_KEY` in its own environment, not just the shell
+that changed the config. Requests are opt-in and skipped in `lag`/`off` mode.
+A project's `.voxtype/config` can disable them. Timeout, HTTP error, malformed
+response, and low selector confidence all preserve the local decision without
+retrying. Debug logs report latency and success without printing credentials.
+
+### Offline G2P fails for unknown words
+
+Install `tools/requirements-lexicon.txt` in a virtual environment and make sure
+the `g2p_en`/NLTK resources are available. Alternatively install `espeak-ng`
+and choose `--backend espeak`, or supply known English spoken forms and use
+`--backend none`. An unsupported IPA symbol fails rather than generating a
+silently incorrect pronunciation. `--workers 1` makes dependency failures
+easier to diagnose.
 
 ## Transcript Review (Fork)
 

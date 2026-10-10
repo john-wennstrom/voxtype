@@ -39,6 +39,69 @@ config written for a newer voxtype still loads on an older one.
 
 ## Configuration Sections
 
+## Phonetic Lexicon (Fork)
+
+English-only correction for the Nemotron engine, disabled by default:
+
+```toml
+[lexicon]
+enabled = false
+# index = "/home/me/.cache/voxtype/lexicon/user.vxl"
+# project = "/path/to/project"
+confidence_threshold = 0.89
+similarity_threshold = 0.82
+
+[lexicon.streaming]
+commit = "lag"  # lag, eou, off
+
+[lexicon.jev]
+enabled = false
+model = "jev-latest"
+timeout_ms = 300
+confidence_threshold = 0.6
+```
+
+`index` defaults to the user lexicon cache. `project` overrides the persisted
+`voxtype lexicon use` selection. Known words below 89% confidence trigger lookup
+by default, including common short words. Common words still need domain
+context before automatic correction. Missing
+word scores do not count as low confidence. Streaming correction uses a
+similarity threshold of at least 0.88. `lag` holds three complete stable words;
+`eou` previews phonetic picks while recording and corrects on release;
+`off` commits stable words uncorrected.
+Live modes activate toggle-hotkey safety. Neither mode revises already-typed
+text. `eou` here means stream finalization, not automatic silence segmentation.
+
+Confidence values use the 0 to 1 scale: `0.89` is 89%. The popup and terminal
+logs display percentages. Normal terminal logs report confidence evaluations,
+lookups, candidates, and selected replacements. Only selected replacements
+receive the blue underline in the native popup; a lookup alone is not a pick.
+
+Jev requires `TYPESAFE_API_KEY` and explicitly opts in to sending dictated text
+to TypeSafe. Timeout must be 1 to 10000 ms. Confidence and similarity settings
+must be finite values in `[0, 1]`. Requests run only in batch or `eou` mode.
+Project `.voxtype/config` can set `[lexicon.jev] enabled = false`; unreadable
+project privacy configuration disables remote selection.
+
+Every setting is also available through CLI and environment overrides:
+
+| Config key | CLI | Environment |
+|---|---|---|
+| `lexicon.enabled` | `--lexicon` / `--no-lexicon` | `VOXTYPE_LEXICON_ENABLED` |
+| `lexicon.index` | `--lexicon-index` | `VOXTYPE_LEXICON_INDEX` |
+| `lexicon.project` | `--lexicon-project` | `VOXTYPE_LEXICON_PROJECT` |
+| `lexicon.confidence_threshold` | `--lexicon-confidence-threshold` | `VOXTYPE_LEXICON_CONFIDENCE_THRESHOLD` |
+| `lexicon.similarity_threshold` | `--lexicon-similarity-threshold` | `VOXTYPE_LEXICON_SIMILARITY_THRESHOLD` |
+| `lexicon.streaming.commit` | `--lexicon-streaming-commit` | `VOXTYPE_LEXICON_STREAMING_COMMIT` |
+| `lexicon.jev.enabled` | `--lexicon-jev` / `--no-lexicon-jev` | `VOXTYPE_LEXICON_JEV_ENABLED` |
+| `lexicon.jev.model` | `--lexicon-jev-model` | `VOXTYPE_LEXICON_JEV_MODEL` |
+| `lexicon.jev.timeout_ms` | `--lexicon-jev-timeout-ms` | `VOXTYPE_LEXICON_JEV_TIMEOUT_MS` |
+| `lexicon.jev.confidence_threshold` | `--lexicon-jev-confidence-threshold` | `VOXTYPE_LEXICON_JEV_CONFIDENCE_THRESHOLD` |
+
+`voxtype config set lexicon.enabled true` persists the setting while preserving
+other configuration. See [Phonetic Lexicons](USER_MANUAL.md#phonetic-lexicons)
+for pronunciation generation, building, and project selection.
+
 ---
 
 ## engine

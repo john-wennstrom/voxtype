@@ -672,7 +672,12 @@ pub(crate) fn draw_transcript(
             if index > 0 {
                 job.append(" ", 0.0, normal_format.clone());
             }
-            job.append(&word.text, 0.0, normal_format.clone());
+            let mut word_format = normal_format.clone();
+            if word.lexicon {
+                word_format.underline =
+                    egui::Stroke::new(2.0_f32, egui::Color32::from_rgb(30, 110, 220));
+            }
+            job.append(&word.text, 0.0, word_format);
             if let Some(score) = word.confidence {
                 job.append(
                     &format!("\u{00a0}[{:.0}]", score * 100.0),
@@ -797,10 +802,12 @@ mod transcript_tests {
                     voxtype::transcribe::WordConfidence {
                         text: "Hello".to_string(),
                         confidence: Some(0.8),
+                        lexicon: true,
                     },
                     voxtype::transcribe::WordConfidence {
                         text: "world".to_string(),
                         confidence: Some(0.6),
+                        lexicon: false,
                     },
                 ],
                 recording: true,
@@ -835,6 +842,15 @@ mod transcript_tests {
                 })
                 .collect();
             assert_eq!(texts.len(), 2);
+            let sections = &texts[1].1.galley.job.sections;
+            assert_eq!(sections[0].format.underline.width, 2.0);
+            assert_eq!(
+                sections[0].format.underline.color,
+                egui::Color32::from_rgb(30, 110, 220)
+            );
+            assert!(sections[1..]
+                .iter()
+                .all(|section| section.format.underline.width == 0.0));
             assert_eq!(texts[0].1.galley.job.text, "Confidence 70/100");
             assert_eq!(
                 texts[1].1.galley.job.text,

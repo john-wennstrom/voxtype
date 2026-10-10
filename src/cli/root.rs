@@ -59,6 +59,54 @@ pub struct Cli {
     #[arg(short, long)]
     pub quiet: bool,
 
+    /// Enable English phonetic correction for Nemotron
+    #[arg(long, conflicts_with = "no_lexicon", help_heading = "Lexicon")]
+    pub lexicon: bool,
+
+    /// Disable phonetic correction even when enabled in the config file
+    #[arg(long, help_heading = "Lexicon")]
+    pub no_lexicon: bool,
+
+    /// Override the memory-mapped user lexicon index
+    #[arg(long, value_name = "FILE", help_heading = "Lexicon")]
+    pub lexicon_index: Option<std::path::PathBuf>,
+
+    /// Select a project directory containing .voxtype/terms.tsv
+    #[arg(long, value_name = "DIR", help_heading = "Lexicon")]
+    pub lexicon_project: Option<std::path::PathBuf>,
+
+    /// Stable-word commit mode: lag (three words), eou (release), or off (uncorrected)
+    #[arg(long, value_parser = ["lag", "eou", "off"], help_heading = "Lexicon")]
+    pub lexicon_streaming_commit: Option<String>,
+
+    /// Search words with confidence below this threshold (0 to 1)
+    #[arg(long, value_name = "SCORE", help_heading = "Lexicon")]
+    pub lexicon_confidence_threshold: Option<f32>,
+
+    /// Minimum phonetic similarity for a replacement (0 to 1)
+    #[arg(long, value_name = "SCORE", help_heading = "Lexicon")]
+    pub lexicon_similarity_threshold: Option<f32>,
+
+    /// Enable TypeSafe Jev selection (sends current/previous dictation to TypeSafe)
+    #[arg(long, conflicts_with = "no_lexicon_jev", help_heading = "Lexicon")]
+    pub lexicon_jev: bool,
+
+    /// Disable remote Jev selection
+    #[arg(long, help_heading = "Lexicon")]
+    pub no_lexicon_jev: bool,
+
+    /// Override Jev model (default: jev-latest)
+    #[arg(long, help_heading = "Lexicon")]
+    pub lexicon_jev_model: Option<String>,
+
+    /// Hard Jev request timeout in milliseconds (default: 300)
+    #[arg(long, help_heading = "Lexicon")]
+    pub lexicon_jev_timeout_ms: Option<u64>,
+
+    /// Minimum Jev confidence for a selected correction (0 to 1)
+    #[arg(long, help_heading = "Lexicon")]
+    pub lexicon_jev_confidence_threshold: Option<f32>,
+
     // -- Transcription (engine-agnostic) --
     /// Override transcription model
     #[arg(

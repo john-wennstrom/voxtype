@@ -67,6 +67,53 @@ pub fn load_config(path: Option<&Path>) -> Result<Config, VoxtypeError> {
     }
 
     // Override from environment variables
+    if let Ok(value) = std::env::var("VOXTYPE_LEXICON_ENABLED") {
+        config.lexicon.enabled = parse_bool_env(&value);
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_LEXICON_INDEX") {
+        config.lexicon.index = Some(value.into());
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_LEXICON_PROJECT") {
+        config.lexicon.project = Some(value.into());
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_LEXICON_STREAMING_COMMIT") {
+        config.lexicon.streaming.commit = match value.as_str() {
+            "lag" => voxtype_lexicon::stream::CommitMode::Lag,
+            "eou" => voxtype_lexicon::stream::CommitMode::Eou,
+            "off" => voxtype_lexicon::stream::CommitMode::Off,
+            _ => {
+                return Err(VoxtypeError::Config(
+                    "VOXTYPE_LEXICON_STREAMING_COMMIT must be lag, eou, or off".into(),
+                ))
+            }
+        };
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_LEXICON_JEV_ENABLED") {
+        config.lexicon.jev.enabled = parse_bool_env(&value);
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_LEXICON_JEV_MODEL") {
+        config.lexicon.jev.model = value;
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_LEXICON_JEV_TIMEOUT_MS") {
+        config.lexicon.jev.timeout_ms = value
+            .parse()
+            .map_err(|_| VoxtypeError::Config("Invalid VOXTYPE_LEXICON_JEV_TIMEOUT_MS".into()))?;
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_LEXICON_JEV_CONFIDENCE_THRESHOLD") {
+        config.lexicon.jev.confidence_threshold = value.parse().map_err(|_| {
+            VoxtypeError::Config("Invalid VOXTYPE_LEXICON_JEV_CONFIDENCE_THRESHOLD".into())
+        })?;
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_LEXICON_CONFIDENCE_THRESHOLD") {
+        config.lexicon.confidence_threshold = value.parse().map_err(|_| {
+            VoxtypeError::Config("Invalid VOXTYPE_LEXICON_CONFIDENCE_THRESHOLD".to_string())
+        })?;
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_LEXICON_SIMILARITY_THRESHOLD") {
+        config.lexicon.similarity_threshold = value.parse().map_err(|_| {
+            VoxtypeError::Config("Invalid VOXTYPE_LEXICON_SIMILARITY_THRESHOLD".to_string())
+        })?;
+    }
     // Hotkey
     if let Ok(key) = std::env::var("VOXTYPE_HOTKEY") {
         config.hotkey.key = key;

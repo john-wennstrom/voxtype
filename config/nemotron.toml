@@ -7,6 +7,13 @@ backend = "cuda"
 streaming = true
 streaming_chunk_ms = 160
 
+[lexicon]
+enabled = true
+confidence_threshold = 0.89
+
+[lexicon.streaming]
+commit = "eou"
+
 [hotkey]
 enabled = true
 key = "EVTEST_47"
