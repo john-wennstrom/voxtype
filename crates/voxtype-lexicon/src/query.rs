@@ -24,6 +24,7 @@ pub struct Word<'text> {
 #[derive(Clone, Copy)]
 pub struct QueryOpts {
     pub confidence_threshold: f32,
+    pub capitalized_confidence_threshold: Option<f32>,
     pub similarity_threshold: f32,
     pub recent_context: bool,
 }
@@ -32,6 +33,7 @@ impl Default for QueryOpts {
     fn default() -> Self {
         Self {
             confidence_threshold: 0.89,
+            capitalized_confidence_threshold: None,
             similarity_threshold: 0.82,
             recent_context: false,
         }
@@ -190,6 +192,8 @@ pub struct QueryEngine {
     suppressed: Vec<bool>,
     overrides: Vec<Option<u32>>,
     weights: Vec<f32>,
+    aliases: HashMap<String, String>,
+    suppressed_aliases: HashSet<String>,
 }
 
 impl QueryEngine {
@@ -205,10 +209,20 @@ impl QueryEngine {
             suppressed: Vec::new(),
             overrides: Vec::new(),
             weights: Vec::new(),
+            aliases: HashMap::new(),
+            suppressed_aliases: HashSet::new(),
         }
     }
 
+    pub fn set_aliases(&mut self, aliases: HashMap<String, String>) {
+        self.aliases = aliases;
+    }
+
     pub fn set_project(&mut self, project: Option<PhoneticIndex>, suppressions: &HashSet<String>) {
+        self.suppressed_aliases = suppressions
+            .iter()
+            .map(|term| term.to_lowercase())
+            .collect();
         let project_ids: HashMap<_, _> = project
             .as_ref()
             .map(|project| {
@@ -295,6 +309,18 @@ impl QueryEngine {
         let mut uncertain = Vec::with_capacity(words.len());
         for word in words {
             let mut phones = SmallVec::new();
+            let capitalized = word
+                .text
+                .chars()
+                .find(|character| character.is_alphabetic())
+                .is_some_and(char::is_uppercase);
+            let threshold = if capitalized {
+                options
+                    .capitalized_confidence_threshold
+                    .unwrap_or(options.confidence_threshold)
+            } else {
+                options.confidence_threshold
+            };
             let known = self.index.g2p_word(word.text, &mut phones)
                 || self
                     .project
@@ -302,9 +328,9 @@ impl QueryEngine {
                     .is_some_and(|project| project.g2p_word(word.text, &mut phones));
             uncertain.push(
                 !known
-                    || word.confidence.is_some_and(|confidence| {
-                        confidence.is_finite() && confidence < options.confidence_threshold
-                    }),
+                    || word
+                        .confidence
+                        .is_some_and(|confidence| confidence.is_finite() && confidence < threshold),
             );
             if !known {
                 fallback(word.text, &mut phones);
@@ -320,6 +346,32 @@ impl QueryEngine {
                 phones.extend_from_slice(&phonemes[end - 1]);
                 if phones.len() > 63 {
                     break;
+                }
+                let original = words[start..end]
+                    .iter()
+                    .map(|word| word.text)
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                if let Some(canonical) = self
+                    .aliases
+                    .get(&crate::terms::normalize(&original))
+                    .filter(|canonical| {
+                        !self.suppressed_aliases.contains(&canonical.to_lowercase())
+                    })
+                {
+                    let replacement = Replacement {
+                        start,
+                        end,
+                        canonical: canonical.clone(),
+                        score: 1.0,
+                        gain: (end - start) as f32,
+                    };
+                    if words[start..end].iter().all(|word| common(word.text)) {
+                        guarded.push(replacement);
+                    } else {
+                        proposals.push(replacement);
+                    }
+                    continue;
                 }
                 if !uncertain[start..end].iter().any(|uncertain| *uncertain) {
                     continue;
@@ -569,6 +621,111 @@ mod tests {
                 )
                 .text,
             "cube control"
+        );
+    }
+
+    #[test]
+    fn capitalized_words_use_an_optional_higher_lookup_gate() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("test.vxl");
+        let phones = alphabet::parse("V AA K S T AY P").unwrap();
+        build::write(
+            vec![Entry {
+                canonical: "Voxtype".into(),
+                phones: phones.clone(),
+                source: 0,
+                weight: 1.0,
+            }],
+            BTreeMap::from([("vuxtype".into(), phones)]),
+            &path,
+            0,
+        )
+        .unwrap();
+        let mut engine = QueryEngine::new(PhoneticIndex::open(&path).unwrap());
+        for (text, confidence, expected) in [
+            ("Vuxtype", 0.94, "Voxtype"),
+            ("Vuxtype", 0.95, "Vuxtype"),
+            ("vuxtype", 0.94, "vuxtype"),
+            ("\"Vuxtype", 0.94, "\"Voxtype"),
+        ] {
+            let result = engine.query(
+                &[Word {
+                    text,
+                    confidence: Some(confidence),
+                }],
+                QueryOpts {
+                    capitalized_confidence_threshold: Some(0.95),
+                    ..Default::default()
+                },
+            );
+            assert_eq!(result.text, expected);
+        }
+        assert_eq!(
+            engine
+                .query(
+                    &[Word {
+                        text: "Vuxtype",
+                        confidence: Some(0.94)
+                    }],
+                    QueryOpts::default()
+                )
+                .text,
+            "Vuxtype"
+        );
+    }
+
+    #[test]
+    fn reviewed_aliases_correct_unknown_names_without_a_g2p_guess() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("test.vxl");
+        build::write(
+            vec![Entry {
+                canonical: "Voxtype".into(),
+                phones: alphabet::parse("V AA K S T AY P").unwrap(),
+                source: 0,
+                weight: 1.0,
+            }],
+            BTreeMap::new(),
+            &path,
+            0,
+        )
+        .unwrap();
+        let mut engine = QueryEngine::new(PhoneticIndex::open(&path).unwrap());
+        engine.set_aliases(crate::terms::aliases("Voxtype\tVuxtype|vox type\n").unwrap());
+        let result = engine.query(
+            &[Word {
+                text: "Vuxtype,",
+                confidence: Some(0.99),
+            }],
+            QueryOpts::default(),
+        );
+        assert_eq!(result.text, "Voxtype,");
+        assert_eq!(result.replacements.len(), 1);
+        engine.set_project(None, &HashSet::from(["voxtype".into()]));
+        assert_ne!(
+            engine
+                .query(
+                    &[Word {
+                        text: "Vuxtype",
+                        confidence: Some(0.99)
+                    }],
+                    QueryOpts::default()
+                )
+                .text,
+            "Voxtype"
+        );
+        engine.set_aliases(HashMap::new());
+        assert_ne!(
+            engine
+                .query(
+                    &[Word {
+                        text: "Vuxtype",
+                        confidence: Some(0.99)
+                    }],
+                    QueryOpts::default()
+                )
+                .text,
+            "Voxtype"
         );
     }
 

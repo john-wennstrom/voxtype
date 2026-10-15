@@ -110,7 +110,7 @@ pub struct WordConfidence {
 }
 
 #[cfg(feature = "granite")]
-mod lexicon;
+pub(crate) mod lexicon;
 #[cfg(feature = "granite")]
 mod lexicon_select;
 

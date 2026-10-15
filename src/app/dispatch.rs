@@ -71,15 +71,36 @@ pub(crate) async fn dispatch(
             let mut daemon = daemon::Daemon::new(config, config_path);
             daemon.run().await?;
         }
+        Commands::Init {
+            project,
+            backend,
+            python,
+        } => {
+            super::lexicon::init(&project, &backend, &python, &config.lexicon)?;
+        }
         Commands::Lexicon { action } => {
             use voxtype::cli::LexiconAction;
             use voxtype_lexicon::{alphabet, build, PhoneticIndex, Scratch, SearchOpts};
             match action {
+                LexiconAction::Synthesize {
+                    terms,
+                    output,
+                    voices,
+                } => {
+                    super::lexicon::synthesize(&terms, &output, &voices)?;
+                }
+                LexiconAction::Evaluate {
+                    manifest,
+                    corrections,
+                } => {
+                    super::lexicon::evaluate(&config, &manifest, &corrections)?;
+                }
                 LexiconAction::Build {
                     variants,
                     query_dict,
                     output,
                     project,
+                    corrections,
                 } => {
                     let output = match (output, project) {
                         (Some(output), _) => output,
@@ -87,7 +108,12 @@ pub(crate) async fn dispatch(
                             .map_err(anyhow::Error::msg)?,
                         _ => config.lexicon.index_path().map_err(anyhow::Error::msg)?,
                     };
-                    build::from_tsv(&variants, &query_dict, &output)?;
+                    build::from_tsv_with_corrections(
+                        &variants,
+                        &query_dict,
+                        &output,
+                        corrections.as_deref(),
+                    )?;
                     let index = PhoneticIndex::open(&output)?;
                     println!(
                         "Built {} terms, {} variants: {}",
@@ -107,32 +133,9 @@ pub(crate) async fn dispatch(
                         }
                         println!("Selected user lexicon only");
                     } else {
-                        let project = path
-                            .ok_or_else(|| anyhow::anyhow!("Provide a project path or --clear"))?
-                            .canonicalize()?;
-                        anyhow::ensure!(
-                            project.join(".voxtype/terms.tsv").is_file(),
-                            "Project must contain .voxtype/terms.tsv"
-                        );
-                        let index = config::LexiconConfig::project_index_path(&project)
-                            .map_err(anyhow::Error::msg)?;
-                        PhoneticIndex::open(&index)?;
-                        let parent = active_file
-                            .parent()
-                            .ok_or_else(|| anyhow::anyhow!("Invalid active-project path"))?;
-                        std::fs::create_dir_all(parent)?;
-                        let mut file = tempfile::NamedTempFile::new_in(parent)?;
-                        use std::io::Write;
-                        writeln!(
-                            file,
-                            "{}",
-                            project
-                                .to_str()
-                                .ok_or_else(|| anyhow::anyhow!("Project path must be UTF-8"))?
-                        )?;
-                        file.as_file().sync_all()?;
-                        file.persist(active_file).map_err(|error| error.error)?;
-                        println!("Selected project lexicon: {}", project.display());
+                        super::lexicon::select_project(&path.ok_or_else(|| {
+                            anyhow::anyhow!("Provide a project path or --clear")
+                        })?)?;
                     }
                 }
                 LexiconAction::Query { phones, index } => {

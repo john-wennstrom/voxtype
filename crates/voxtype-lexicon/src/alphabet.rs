@@ -68,7 +68,46 @@ pub fn grams(phones: &[u8], output: &mut [u16; 65]) -> usize {
     unique
 }
 
+pub type Costs = [[u8; 40]; 40];
+
+pub fn default_costs() -> Costs {
+    let mut costs = [[3; 40]; 40];
+    for left in 0..39 {
+        for right in 0..39 {
+            costs[left][right] = if left == right {
+                0
+            } else if COARSE[left] == 0 && COARSE[right] == 0 {
+                2
+            } else if COARSE[left] == COARSE[right] {
+                1
+            } else {
+                4
+            };
+        }
+    }
+    costs[39][39] = 0;
+    costs
+}
+
+pub fn validate_costs(costs: &Costs) -> Result<()> {
+    for (left, row) in costs.iter().enumerate() {
+        for (right, &cost) in row.iter().enumerate() {
+            if (left == right && cost != 0)
+                || (left != right && !(1..=4).contains(&cost))
+                || ((left == 39 || right == 39) && left != right && cost != 3)
+            {
+                bail!("Invalid learned phoneme cost at {left},{right}");
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn distance(left: &[u8], right: &[u8], limit: u16) -> u16 {
+    distance_with_costs(left, right, limit, &default_costs())
+}
+
+pub fn distance_with_costs(left: &[u8], right: &[u8], limit: u16, costs: &Costs) -> u16 {
     let infinity = u16::MAX / 2;
     let radius = (limit / 3) as usize;
     if left.len().abs_diff(right.len()) > radius {
@@ -88,15 +127,7 @@ pub fn distance(left: &[u8], right: &[u8], limit: u16) -> u16 {
         let start = (row + 1).saturating_sub(radius).max(1) - 1;
         let end = (row + 1 + radius).min(right.len());
         for (column, &right_phone) in right.iter().enumerate().take(end).skip(start) {
-            let substitution = if left_phone == right_phone {
-                0
-            } else if COARSE[left_phone as usize] == 0 && COARSE[right_phone as usize] == 0 {
-                2
-            } else if COARSE[left_phone as usize] == COARSE[right_phone as usize] {
-                1
-            } else {
-                4
-            };
+            let substitution = costs[left_phone as usize][right_phone as usize] as u16;
             current[column + 1] = (previous[column + 1] + 3)
                 .min(current[column] + 3)
                 .min(previous[column] + substitution);

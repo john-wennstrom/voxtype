@@ -1,15 +1,22 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+#[path = "lexicon_project.rs"]
+mod project_detection;
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct LexiconConfig {
     pub enabled: bool,
     pub index: Option<PathBuf>,
+    pub terms: Option<PathBuf>,
     pub project: Option<PathBuf>,
+    pub auto_project: bool,
     pub confidence_threshold: f32,
+    pub capitalized_confidence_threshold: Option<f32>,
     pub similarity_threshold: f32,
     pub jev: JevConfig,
+    pub local: LocalSelectorConfig,
     pub streaming: LexiconStreamingConfig,
 }
 
@@ -39,15 +46,41 @@ impl Default for JevConfig {
     }
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct LocalSelectorConfig {
+    pub enabled: bool,
+    pub model: Option<PathBuf>,
+    pub helper: Option<PathBuf>,
+    pub timeout_ms: u64,
+    pub threads: u16,
+}
+
+impl Default for LocalSelectorConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            model: None,
+            helper: None,
+            timeout_ms: 1000,
+            threads: 4,
+        }
+    }
+}
+
 impl Default for LexiconConfig {
     fn default() -> Self {
         Self {
             enabled: false,
             index: None,
+            terms: None,
             project: None,
+            auto_project: false,
             confidence_threshold: 0.89,
+            capitalized_confidence_threshold: None,
             similarity_threshold: 0.82,
             jev: JevConfig::default(),
+            local: LocalSelectorConfig::default(),
             streaming: LexiconStreamingConfig::default(),
         }
     }
@@ -67,8 +100,10 @@ impl LexiconConfig {
         let path = Self::active_project_file()?;
         match std::fs::read_to_string(path) {
             Ok(path) if !path.trim().is_empty() => Ok(Some(PathBuf::from(path.trim()))),
-            Ok(_) => Ok(None),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Ok(_) => Ok(self.auto_project.then(project_detection::detect).flatten()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                Ok(self.auto_project.then(project_detection::detect).flatten())
+            }
             Err(error) => Err(format!("Cannot read active lexicon project: {error}")),
         }
     }
@@ -97,6 +132,18 @@ impl LexiconConfig {
     }
 
     pub fn validate(&self) -> Result<(), String> {
+        if self
+            .capitalized_confidence_threshold
+            .is_some_and(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
+        {
+            return Err("lexicon.capitalized_confidence_threshold must be between 0 and 1".into());
+        }
+        if !(1..=10_000).contains(&self.local.timeout_ms)
+            || !(1..=256).contains(&self.local.threads)
+            || (self.local.enabled && self.local.model.is_none())
+        {
+            return Err("lexicon.local requires a GGUF model, timeout_ms in 1..=10000, and threads in 1..=256".into());
+        }
         for (name, value) in [
             ("confidence_threshold", self.confidence_threshold),
             ("similarity_threshold", self.similarity_threshold),
@@ -125,6 +172,14 @@ mod tests {
     fn defaults_are_opt_in() {
         let config: crate::config::Config = toml::from_str("").unwrap();
         assert!(!config.lexicon.enabled);
+        assert!(!config.lexicon.auto_project);
+        assert!(!config.lexicon.local.enabled);
+        let explicit = LexiconConfig {
+            project: Some("/explicit/project".into()),
+            auto_project: true,
+            ..Default::default()
+        };
+        assert_eq!(explicit.active_project().unwrap(), explicit.project);
         assert_eq!(config.lexicon.confidence_threshold, 0.89);
         let mut live = config.clone();
         live.engine = crate::config::TranscriptionEngine::Nemotron;

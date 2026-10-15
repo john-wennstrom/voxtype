@@ -76,6 +76,28 @@ pub fn load_config(path: Option<&Path>) -> Result<Config, VoxtypeError> {
     if let Ok(value) = std::env::var("VOXTYPE_LEXICON_PROJECT") {
         config.lexicon.project = Some(value.into());
     }
+    if let Ok(value) = std::env::var("VOXTYPE_LEXICON_AUTO_PROJECT") {
+        config.lexicon.auto_project = parse_bool_env(&value);
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_LEXICON_LOCAL_ENABLED") {
+        config.lexicon.local.enabled = parse_bool_env(&value);
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_LEXICON_LOCAL_MODEL") {
+        config.lexicon.local.model = Some(value.into());
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_LEXICON_LOCAL_HELPER") {
+        config.lexicon.local.helper = Some(value.into());
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_LEXICON_LOCAL_TIMEOUT_MS") {
+        config.lexicon.local.timeout_ms = value
+            .parse()
+            .map_err(|_| VoxtypeError::Config("Invalid VOXTYPE_LEXICON_LOCAL_TIMEOUT_MS".into()))?;
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_LEXICON_LOCAL_THREADS") {
+        config.lexicon.local.threads = value
+            .parse()
+            .map_err(|_| VoxtypeError::Config("Invalid VOXTYPE_LEXICON_LOCAL_THREADS".into()))?;
+    }
     if let Ok(value) = std::env::var("VOXTYPE_LEXICON_STREAMING_COMMIT") {
         config.lexicon.streaming.commit = match value.as_str() {
             "lag" => voxtype_lexicon::stream::CommitMode::Lag,
@@ -113,6 +135,14 @@ pub fn load_config(path: Option<&Path>) -> Result<Config, VoxtypeError> {
         config.lexicon.similarity_threshold = value.parse().map_err(|_| {
             VoxtypeError::Config("Invalid VOXTYPE_LEXICON_SIMILARITY_THRESHOLD".to_string())
         })?;
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_LEXICON_CAPITALIZED_CONFIDENCE_THRESHOLD") {
+        config.lexicon.capitalized_confidence_threshold = Some(value.parse().map_err(|_| {
+            VoxtypeError::Config("Invalid VOXTYPE_LEXICON_CAPITALIZED_CONFIDENCE_THRESHOLD".into())
+        })?);
+    }
+    if let Ok(value) = std::env::var("VOXTYPE_LEXICON_TERMS") {
+        config.lexicon.terms = Some(value.into());
     }
     // Hotkey
     if let Ok(key) = std::env::var("VOXTYPE_HOTKEY") {

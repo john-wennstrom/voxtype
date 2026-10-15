@@ -8,8 +8,11 @@ streaming = true
 streaming_chunk_ms = 160
 
 [lexicon]
-enabled = true
+enabled = false
 confidence_threshold = 0.89
+capitalized_confidence_threshold = 0.95
+terms = ".voxtype/terms.tsv"
+model = "nemotron-speech-streaming-en-0.6b-Q8_0.gguf"
 
 [lexicon.streaming]
 commit = "eou"

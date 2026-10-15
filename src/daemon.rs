@@ -844,6 +844,7 @@ pub struct Daemon {
     transcript_supervisor_task: Option<tokio::task::JoinHandle<()>>,
     pending_delivery: Option<ReviewDelivery>,
     streaming_ptt_held: bool,
+    streaming_log_preview: Option<(String, Vec<crate::transcribe::WordConfidence>)>,
     // Model manager for multi-model support
     model_manager: Option<ModelManager>,
     // Background task for loading model on-demand
@@ -996,6 +997,7 @@ impl Daemon {
             transcript_supervisor_task: None,
             pending_delivery: None,
             streaming_ptt_held: false,
+            streaming_log_preview: None,
             model_manager: None,
             model_load_task: None,
             whisper_prepare_task: None,
@@ -1330,6 +1332,7 @@ impl Daemon {
             file_output_path,
         };
         self.streaming_ptt_held = false;
+        self.streaming_log_preview = None;
         self.publish_transcript("", true);
         self.update_state("streaming");
         self.play_feedback(SoundEvent::RecordingStart);
@@ -1561,6 +1564,14 @@ impl Daemon {
         streaming_session: &mut Option<StreamingSession>,
         streaming_chain: &mut Option<Vec<Box<dyn TextOutput>>>,
     ) {
+        #[cfg(feature = "granite")]
+        if let Some(text) = streaming_session
+            .as_ref()
+            .and_then(|session| self.final_lexicon_log(session.finalized_text()))
+        {
+            tracing::info!(%text, "Lexicon final message");
+        }
+        self.streaming_log_preview = None;
         self.streaming_ptt_held = false;
         if let Some(mut c) = audio_capture.take() {
             let _ = c.stop().await;
@@ -1682,6 +1693,7 @@ impl Daemon {
         notification_body: &str,
     ) {
         self.streaming_ptt_held = false;
+        self.streaming_log_preview = None;
         self.clear_transcript();
         let backend_task = streaming_handle.take().map(|h| {
             let _ = h.cancel.send(());
@@ -1732,6 +1744,31 @@ impl Daemon {
         }
     }
 
+    #[cfg(feature = "granite")]
+    fn final_lexicon_log(&mut self, finalized: &str) -> Option<String> {
+        if self.streaming_ptt_held
+            || finalized.trim().is_empty()
+            || !self.config.lexicon.enabled
+            || self.config.engine != crate::config::TranscriptionEngine::Nemotron
+        {
+            return None;
+        }
+        let (text, words) = self.streaming_log_preview.take()?;
+        if words
+            .iter()
+            .map(|word| word.text.as_str())
+            .eq(text.split_whitespace())
+        {
+            Some(crate::transcribe::lexicon::format_log_words(
+                &words,
+                false,
+                crate::transcribe::lexicon::log_ansi(),
+            ))
+        } else {
+            Some(text)
+        }
+    }
+
     fn publish_transcript(&self, text: &str, recording: bool) {
         if let Some(publisher) = &self.transcript_publisher {
             if let Err(error) = publisher.publish(text, recording) {
@@ -1779,6 +1816,43 @@ impl Daemon {
         Ok(())
     }
 
+    fn apply_review_correction(
+        &mut self,
+        correction: Option<&crate::osd::transcript::TranscriptCorrection>,
+    ) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            self.config.transcript_popup.review_mode,
+            "Transcript corrections require review mode"
+        );
+        let correction = correction.ok_or_else(|| anyhow::anyhow!("Missing correction"))?;
+        let pending = self
+            .pending_delivery
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No pending transcript"))?;
+        let (text, recognized) = correction.apply(&pending.text)?;
+        anyhow::ensure!(
+            self.config.lexicon.enabled,
+            "Enable lexicon before learning corrections"
+        );
+        let path = self.config.lexicon.terms.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("Set lexicon.terms to the source terms.tsv before saving corrections")
+        })?;
+        voxtype_lexicon::terms::save_correction(path, &recognized, &correction.replacement)?;
+        let revision = self
+            .transcript_publisher
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Review popup unavailable"))?
+            .stage_for_review(&text)?;
+        let pending = self
+            .pending_delivery
+            .as_mut()
+            .expect("checked pending transcript");
+        pending.text = text;
+        pending.revision = revision;
+        tracing::info!(path = %path.display(), "Transcript correction saved to lexicon terms");
+        Ok(())
+    }
+
     async fn handle_review_action(&mut self, state: &mut State) {
         use crate::osd::transcript::ReviewAction;
         let request = match self
@@ -1804,6 +1878,13 @@ impl Daemon {
             .pending_delivery
             .take()
             .expect("checked pending delivery");
+        if request.action == ReviewAction::Correct {
+            self.pending_delivery = Some(pending);
+            if let Err(error) = self.apply_review_correction(request.correction.as_ref()) {
+                tracing::warn!(%error, "Transcript correction was not saved; text remains pending");
+            }
+            return;
+        }
         if request.action == ReviewAction::Discard {
             self.clear_transcript();
             return;
@@ -4500,6 +4581,9 @@ impl Daemon {
                     match event {
                         Some(StreamingEvent::Preview { text, words, .. }) => {
                             self.publish_scored_transcript(&text, &words);
+                            if self.config.lexicon.enabled && self.config.engine == crate::config::TranscriptionEngine::Nemotron {
+                                self.streaming_log_preview = Some((text.clone(), words));
+                            }
                             if let State::Streaming { partial_buffer, .. } = &mut state {
                                 *partial_buffer = text;
                             }
@@ -4932,6 +5016,78 @@ mod tests {
     use tempfile::TempDir;
 
     #[tokio::test]
+    async fn transcript_correction_saves_only_in_review_mode_without_delivery() {
+        use crate::osd::transcript::{
+            TranscriptCorrection, TranscriptPublisher, TranscriptSnapshot,
+        };
+        let directory = TempDir::new().unwrap();
+        let terms = directory.path().join("terms.tsv");
+        fs::write(&terms, "Voxtype\tvox type\t0.9\n").unwrap();
+        let path = directory.path().join("transcript.json");
+        let mut config = Config::default();
+        config.transcript_popup.enabled = true;
+        config.transcript_popup.review_mode = true;
+        config.lexicon.enabled = true;
+        config.lexicon.terms = Some(terms.clone());
+        let mut daemon = Daemon::new(config.clone(), None);
+        daemon.transcript_publisher =
+            Some(TranscriptPublisher::new(path.clone(), config.transcript_popup.clone()).unwrap());
+        daemon
+            .queue_review_delivery(
+                "On Linux, Vuxtype can type".into(),
+                vec![],
+                config.output.clone(),
+            )
+            .unwrap();
+        let original_revision = daemon.pending_delivery.as_ref().unwrap().revision;
+        let correction = TranscriptCorrection {
+            start: 10,
+            end: 17,
+            replacement: "Voxtype".into(),
+        };
+        daemon.config.transcript_popup.review_mode = false;
+        assert!(daemon.apply_review_correction(Some(&correction)).is_err());
+        assert_eq!(
+            fs::read_to_string(&terms).unwrap(),
+            "Voxtype\tvox type\t0.9\n"
+        );
+        daemon.config.transcript_popup.review_mode = true;
+        crate::osd::transcript::request_review(
+            &path,
+            &crate::osd::transcript::ReviewRequest {
+                revision: original_revision,
+                action: crate::osd::transcript::ReviewAction::Correct,
+                correction: Some(correction),
+            },
+        )
+        .unwrap();
+        let mut state = State::Idle;
+        daemon.handle_review_action(&mut state).await;
+        let pending = daemon.pending_delivery.as_ref().unwrap();
+        assert_eq!(pending.text, "On Linux, Voxtype can type");
+        assert!(pending.revision > original_revision);
+        assert!(state.is_idle());
+        assert!(daemon.last_dictation.is_none());
+        assert_eq!(
+            fs::read_to_string(&terms).unwrap(),
+            "Voxtype\tvox type|Vuxtype\t0.9\n"
+        );
+        assert_eq!(TranscriptSnapshot::read(&path).unwrap().text, pending.text);
+        daemon.config.lexicon.terms = Some(directory.path().join("missing.tsv"));
+        assert!(daemon
+            .apply_review_correction(Some(&TranscriptCorrection {
+                start: 10,
+                end: 17,
+                replacement: "OtherName".into()
+            }))
+            .is_err());
+        assert_eq!(
+            daemon.pending_delivery.as_ref().unwrap().text,
+            "On Linux, Voxtype can type"
+        );
+    }
+
+    #[tokio::test]
     async fn transcript_review_delivers_only_on_approval_and_keeps_popup_open() {
         use crate::osd::transcript::{
             request_review_action, ReviewAction, TranscriptPublisher, TranscriptSnapshot,
@@ -5065,6 +5221,30 @@ mod tests {
             assert_eq!(session.is_some(), preserve);
             assert_eq!(chain.is_some(), preserve);
         }
+    }
+
+    #[cfg(feature = "granite")]
+    #[test]
+    fn final_lexicon_log_waits_for_release_and_emits_once() {
+        let mut config = Config {
+            engine: crate::config::TranscriptionEngine::Nemotron,
+            ..Default::default()
+        };
+        config.lexicon.enabled = true;
+        config.audio.feedback.enabled = false;
+        config.vad.enabled = false;
+        let mut daemon = Daemon::new(config, None);
+        daemon.streaming_ptt_held = true;
+        daemon.streaming_log_preview = Some(("run kubectl now".into(), Vec::new()));
+        assert_eq!(daemon.final_lexicon_log("run kubectl now"), None);
+        assert!(daemon.streaming_log_preview.is_some());
+        daemon.streaming_ptt_held = false;
+        assert_eq!(daemon.final_lexicon_log(""), None);
+        assert_eq!(
+            daemon.final_lexicon_log("run kubectl now").as_deref(),
+            Some("run kubectl now")
+        );
+        assert_eq!(daemon.final_lexicon_log("run kubectl now"), None);
     }
 
     /// #643: the panic-recovery arm in handle_transcription_result must fire

@@ -2,7 +2,9 @@ use super::app::{draw_transcript, SharedState};
 use anyhow::Context as _;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use voxtype::osd::transcript::{now_ms, request_review_action, ReviewAction, TranscriptSnapshot};
+use voxtype::osd::transcript::{
+    now_ms, request_review, ReviewAction, ReviewRequest, TranscriptSnapshot,
+};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -48,13 +50,21 @@ impl ApplicationHandler for Popup {
             .and_then(TranscriptSnapshot::read)
             .filter(|value| value.visible_at(now_ms()));
         let changed = self.snapshot != snapshot;
+        if changed
+            && self
+                .renderer
+                .as_ref()
+                .is_some_and(|renderer| renderer.delivery_stage)
+        {
+            self.renderer = None;
+        }
         self.snapshot = snapshot;
         let Some(snapshot) = &self.snapshot else {
             self.renderer = None;
             return;
         };
         if self.renderer.is_none() {
-            match Renderer::new(event_loop, snapshot) {
+            match Renderer::new(event_loop, snapshot, false) {
                 Ok(renderer) => self.renderer = Some(renderer),
                 Err(error) => {
                     self.error = Some(error);
@@ -85,12 +95,33 @@ impl ApplicationHandler for Popup {
             WindowEvent::RedrawRequested => {
                 if let Some(snapshot) = &self.snapshot {
                     match renderer.render(snapshot) {
-                        Ok(Some(action)) => {
+                        Ok(Some(PopupAction::Edit)) => {
+                            self.renderer = None;
+                            match Renderer::new(event_loop, snapshot, false) {
+                                Ok(renderer) => self.renderer = Some(renderer),
+                                Err(error) => {
+                                    self.error = Some(error);
+                                    event_loop.exit();
+                                }
+                            }
+                        }
+                        Ok(Some(PopupAction::Review(action)))
+                            if action.action == ReviewAction::Deliver
+                                && !renderer.delivery_stage =>
+                        {
+                            self.renderer = None;
+                            match Renderer::new(event_loop, snapshot, true) {
+                                Ok(renderer) => self.renderer = Some(renderer),
+                                Err(error) => {
+                                    self.error = Some(error);
+                                    event_loop.exit();
+                                }
+                            }
+                        }
+                        Ok(Some(PopupAction::Review(action))) => {
                             tracing::debug!(?action, "Transcript review button activated");
                             if let Some(path) = &self.shared.transcript_path {
-                                if let Err(error) =
-                                    request_review_action(path, snapshot.revision, action)
-                                {
+                                if let Err(error) = request_review(path, &action) {
                                     tracing::warn!("Transcript review action failed: {error}");
                                 }
                             }
@@ -111,6 +142,46 @@ impl ApplicationHandler for Popup {
                     .push(egui::Event::PointerMoved(renderer.pointer_pos));
                 renderer.window.request_redraw();
             }
+            WindowEvent::ModifiersChanged(modifiers) => {
+                let state = modifiers.state();
+                renderer.modifiers = egui::Modifiers {
+                    alt: state.alt_key(),
+                    ctrl: state.control_key(),
+                    shift: state.shift_key(),
+                    mac_cmd: false,
+                    command: state.control_key(),
+                };
+            }
+            WindowEvent::Focused(focused) => {
+                renderer.focused = focused;
+                renderer.events.push(egui::Event::WindowFocused(focused));
+                renderer.window.request_redraw();
+            }
+            WindowEvent::KeyboardInput { event, .. } => {
+                let pressed = event.state == ElementState::Pressed;
+                if let Some(key) = egui_key(&event.logical_key) {
+                    renderer.events.push(egui::Event::Key {
+                        key,
+                        physical_key: None,
+                        pressed,
+                        repeat: event.repeat,
+                        modifiers: renderer.modifiers,
+                    });
+                }
+                if pressed && !renderer.modifiers.ctrl && !renderer.modifiers.alt {
+                    if let Some(text) = event
+                        .text
+                        .filter(|text| !text.chars().any(char::is_control))
+                    {
+                        renderer.events.push(egui::Event::Text(text.to_string()));
+                    }
+                }
+                renderer.window.request_redraw();
+            }
+            WindowEvent::Ime(winit::event::Ime::Commit(text)) => {
+                renderer.events.push(egui::Event::Text(text));
+                renderer.window.request_redraw();
+            }
             WindowEvent::CursorLeft { .. } => {
                 renderer.events.push(egui::Event::PointerGone);
                 renderer.window.request_redraw();
@@ -120,6 +191,14 @@ impl ApplicationHandler for Popup {
                 button: MouseButton::Left,
                 ..
             } => {
+                if state == ElementState::Pressed
+                    && !renderer.delivery_stage
+                    && self.snapshot.as_ref().is_some_and(|snapshot| {
+                        snapshot.settings.review_mode && snapshot.pending_delivery
+                    })
+                {
+                    renderer.window.focus_window();
+                }
                 tracing::debug!(?state, position = ?renderer.pointer_pos, "Transcript pointer button");
                 renderer.events.push(egui::Event::PointerButton {
                     pos: renderer.pointer_pos,
@@ -170,10 +249,85 @@ struct Renderer {
     window: Arc<Window>,
     events: Vec<egui::Event>,
     pointer_pos: egui::Pos2,
+    modifiers: egui::Modifiers,
+    focused: bool,
+    delivery_stage: bool,
+}
+
+enum PopupAction {
+    Review(ReviewRequest),
+    Edit,
+}
+
+fn draw_delivery_confirmation(
+    ui: &mut egui::Ui,
+    width: u32,
+    height: u32,
+    snapshot: &TranscriptSnapshot,
+) -> Option<PopupAction> {
+    ui.style_mut().visuals = egui::Visuals::light();
+    let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width as f32, height as f32));
+    ui.painter().rect_filled(rect, 0.0, egui::Color32::WHITE);
+    let inner = rect.shrink(24.0_f32.min(height as f32 / 10.0));
+    let footer = egui::Rect::from_min_max(egui::pos2(inner.min.x, inner.max.y - 32.0), inner.max);
+    let content = egui::Rect::from_min_max(inner.min, egui::pos2(inner.max.x, footer.min.y - 8.0));
+    ui.scope_builder(
+        egui::UiBuilder::new()
+            .id_salt("delivery-preview")
+            .max_rect(content),
+        |ui| {
+            ui.set_clip_rect(content);
+            egui::ScrollArea::vertical()
+                .max_height(content.height())
+                .show(ui, |ui| {
+                    ui.add(
+                        egui::Label::new(
+                            egui::RichText::new(&snapshot.text).size(snapshot.settings.font_size),
+                        )
+                        .wrap(),
+                    );
+                });
+        },
+    );
+    let mut action = None;
+    ui.scope_builder(
+        egui::UiBuilder::new()
+            .id_salt("delivery-confirmation")
+            .max_rect(footer),
+        |ui| {
+            ui.set_clip_rect(footer);
+            ui.horizontal(|ui| {
+                if ui
+                    .add_enabled(
+                        snapshot.pending_delivery,
+                        egui::Button::new("Send").min_size(egui::vec2(96.0, 28.0)),
+                    )
+                    .clicked()
+                {
+                    action = Some(PopupAction::Review(ReviewRequest {
+                        revision: snapshot.revision,
+                        action: ReviewAction::Deliver,
+                        correction: None,
+                    }));
+                }
+                if ui
+                    .add_sized([96.0, 28.0], egui::Button::new("Edit"))
+                    .clicked()
+                {
+                    action = Some(PopupAction::Edit);
+                }
+            });
+        },
+    );
+    action
 }
 
 impl Renderer {
-    fn new(event_loop: &ActiveEventLoop, snapshot: &TranscriptSnapshot) -> anyhow::Result<Self> {
+    fn new(
+        event_loop: &ActiveEventLoop,
+        snapshot: &TranscriptSnapshot,
+        delivery_stage: bool,
+    ) -> anyhow::Result<Self> {
         let monitor = event_loop
             .primary_monitor()
             .or_else(|| event_loop.available_monitors().next())
@@ -194,7 +348,7 @@ impl Renderer {
             .with_transparent(false)
             .with_active(false)
             .with_window_level(WindowLevel::AlwaysOnTop)
-            .with_override_redirect(true)
+            .with_override_redirect(!snapshot.settings.review_mode || delivery_stage)
             .with_inner_size(winit::dpi::PhysicalSize::new(width, height))
             .with_position(winit::dpi::PhysicalPosition::new(
                 origin.x + ((screen.width - width) / 2) as i32,
@@ -204,7 +358,7 @@ impl Renderer {
         window
             .set_cursor_hittest(snapshot.settings.review_mode)
             .context("Make transcript popup click-through")?;
-        window.set_ime_allowed(false);
+        window.set_ime_allowed(snapshot.settings.review_mode && !delivery_stage);
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::VULKAN | wgpu::Backends::GL,
             flags: wgpu::InstanceFlags::default(),
@@ -251,10 +405,13 @@ impl Renderer {
             window,
             events: Vec::new(),
             pointer_pos: egui::Pos2::ZERO,
+            modifiers: Default::default(),
+            focused: false,
+            delivery_stage,
         })
     }
 
-    fn render(&mut self, snapshot: &TranscriptSnapshot) -> anyhow::Result<Option<ReviewAction>> {
+    fn render(&mut self, snapshot: &TranscriptSnapshot) -> anyhow::Result<Option<PopupAction>> {
         let texture = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(texture)
             | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => texture,
@@ -275,10 +432,16 @@ impl Renderer {
                     egui::vec2(width as f32, height as f32),
                 )),
                 events: std::mem::take(&mut self.events),
+                modifiers: self.modifiers,
+                focused: self.focused,
                 ..Default::default()
             },
             |ui| {
-                action = draw_transcript(ui, width, height, snapshot);
+                action = if self.delivery_stage {
+                    draw_delivery_confirmation(ui, width, height, snapshot)
+                } else {
+                    draw_transcript(ui, width, height, snapshot).map(PopupAction::Review)
+                };
             },
         );
         let primitives = self
@@ -351,9 +514,91 @@ fn popup_surface_format(
         .unwrap_or(fallback)
 }
 
+fn egui_key(key: &winit::keyboard::Key) -> Option<egui::Key> {
+    use winit::keyboard::{Key, NamedKey};
+    Some(match key {
+        Key::Named(NamedKey::ArrowLeft) => egui::Key::ArrowLeft,
+        Key::Named(NamedKey::ArrowRight) => egui::Key::ArrowRight,
+        Key::Named(NamedKey::ArrowUp) => egui::Key::ArrowUp,
+        Key::Named(NamedKey::ArrowDown) => egui::Key::ArrowDown,
+        Key::Named(NamedKey::Home) => egui::Key::Home,
+        Key::Named(NamedKey::End) => egui::Key::End,
+        Key::Named(NamedKey::Backspace) => egui::Key::Backspace,
+        Key::Named(NamedKey::Delete) => egui::Key::Delete,
+        Key::Named(NamedKey::Enter) => egui::Key::Enter,
+        Key::Named(NamedKey::Tab) => egui::Key::Tab,
+        Key::Named(NamedKey::Escape) => egui::Key::Escape,
+        Key::Character(text) if text.eq_ignore_ascii_case("a") => egui::Key::A,
+        _ => return None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn confirmation_sends_only_after_an_explicit_click() {
+        let snapshot = TranscriptSnapshot {
+            text: "Reviewed text".into(),
+            revision: 3,
+            pending_delivery: true,
+            confidence: None,
+            words: Vec::new(),
+            recording: false,
+            expires_at_ms: u64::MAX,
+            settings: voxtype::osd::transcript::TranscriptPopupConfig {
+                enabled: true,
+                review_mode: true,
+                ..Default::default()
+            },
+        };
+        for (horizontal, send) in [(72.0, true), (176.0, false)] {
+            let context = egui::Context::default();
+            let position = egui::pos2(horizontal, 240.0);
+            let mut action = None;
+            for events in [
+                vec![],
+                vec![
+                    egui::Event::PointerMoved(position),
+                    egui::Event::PointerButton {
+                        pos: position,
+                        button: egui::PointerButton::Primary,
+                        pressed: true,
+                        modifiers: Default::default(),
+                    },
+                ],
+                vec![egui::Event::PointerButton {
+                    pos: position,
+                    button: egui::PointerButton::Primary,
+                    pressed: false,
+                    modifiers: Default::default(),
+                }],
+            ] {
+                let _ = context.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(760.0, 280.0),
+                        )),
+                        events,
+                        ..Default::default()
+                    },
+                    |ui| {
+                        action = draw_delivery_confirmation(ui, 760, 280, &snapshot);
+                    },
+                );
+            }
+            match action.unwrap() {
+                PopupAction::Review(request) => {
+                    assert!(send);
+                    assert_eq!(request.action, ReviewAction::Deliver);
+                    assert_eq!(request.revision, 3);
+                }
+                PopupAction::Edit => assert!(!send),
+            }
+        }
+    }
 
     #[test]
     fn transcript_popup_prefers_egui_surface_format() {

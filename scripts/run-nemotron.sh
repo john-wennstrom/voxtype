@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+root=$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.." && pwd)
 native=${TRANSCRIBE_DIR:-"$root/target/native-cuda"}
 binary=${VOXTYPE_NEMOTRON_BINARY:-"$root/target/nemotron-cuda/debug/voxtype"}
 config=${VOXTYPE_NEMOTRON_CONFIG:-"$root/config/nemotron.toml"}
@@ -22,6 +22,11 @@ if [[ ! -f "$config" ]]; then
 fi
 
 export LD_LIBRARY_PATH="$native/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+if [[ "${1:-}" == review ]]; then
+    shift
+    export VOXTYPE_TRANSCRIPT_POPUP=true
+    export VOXTYPE_TRANSCRIPT_POPUP_REVIEW=true
+fi
 if (( $# == 0 )); then
     set -- daemon
 fi

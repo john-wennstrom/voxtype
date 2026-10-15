@@ -8,6 +8,7 @@ use std::path::Path;
 pub struct PhoneticIndex {
     map: Mmap,
     header: Header,
+    costs: alphabet::Costs,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -122,7 +123,22 @@ impl PhoneticIndex {
                 "Lexicon checksum mismatch"
             );
         }
-        let index = Self { map, header };
+        ensure!(header.reserved <= 1, "Unsupported lexicon extension");
+        let costs = if header.reserved == 1 {
+            ensure!(map.len() == end + 1608, "Invalid learned cost table size");
+            let bytes = &map[end..end + 1600];
+            ensure!(
+                xxhash_rust::xxh3::xxh3_64(bytes)
+                    == u64::from_le_bytes(map[end + 1600..].try_into()?),
+                "Learned cost checksum mismatch"
+            );
+            let costs = *bytemuck::from_bytes::<alphabet::Costs>(bytes);
+            alphabet::validate_costs(&costs)?;
+            costs
+        } else {
+            alphabet::default_costs()
+        };
+        let index = Self { map, header, costs };
         index.validate()?;
         Ok(index)
     }
@@ -311,7 +327,8 @@ impl PhoneticIndex {
             return;
         }
         let max_cost = options.max_edits.min(63) as u16 * 4;
-        let cost = alphabet::distance(phones, self.phones(variant), max_cost);
+        let cost =
+            alphabet::distance_with_costs(phones, self.phones(variant), max_cost, &self.costs);
         if cost > max_cost {
             return;
         }
@@ -463,6 +480,42 @@ mod tests {
         .unwrap();
         let index = PhoneticIndex::open_with_tokenizer(&path, tokenizer).unwrap();
         (directory, index)
+    }
+
+    #[test]
+    fn learned_costs_round_trip_and_reject_corruption() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("learned.vxl");
+        let mut costs = alphabet::default_costs();
+        costs[10][16] = 1;
+        build::write_with_costs(
+            vec![Entry {
+                canonical: "git".into(),
+                phones: alphabet::parse("G IH T").unwrap(),
+                source: 0,
+                weight: 1.0,
+            }],
+            BTreeMap::new(),
+            &path,
+            0,
+            Some(&costs),
+        )
+        .unwrap();
+        let index = PhoneticIndex::open(&path).unwrap();
+        let mut candidates = Vec::new();
+        index.search(
+            &alphabet::parse("G EH T").unwrap(),
+            &SearchOpts::default(),
+            &mut Scratch::new(&index),
+            &mut candidates,
+        );
+        assert_eq!(candidates[0].cost, 1);
+        let mut bytes = std::fs::read(&path).unwrap();
+        let position = bytes.len() - 10;
+        bytes[position] ^= 1;
+        let corrupt = directory.path().join("corrupt.vxl");
+        std::fs::write(&corrupt, bytes).unwrap();
+        assert!(PhoneticIndex::open(&corrupt).is_err());
     }
 
     #[test]

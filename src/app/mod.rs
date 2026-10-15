@@ -22,6 +22,7 @@ mod config_set;
 mod config_show;
 mod dispatch;
 mod info;
+mod lexicon;
 #[cfg(target_os = "macos")]
 mod macos;
 mod meeting;

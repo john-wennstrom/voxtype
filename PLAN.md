@@ -465,8 +465,11 @@ per the implementation follow-up. No latency or accuracy target is claimed.
   implemented. Held-out accuracy evaluation requires recordings and references.
 - M3: explicit project selection, suppressions, spelling/weight overrides,
   between-utterance reload, and opt-in typed Jev Choice requests with timeout
-  fallback implemented. Local GGUF selector and term-description rubrics are
-  not implemented. Jev correctness tests use local fixtures, not a paid API.
+  fallback implemented. Local GGUF selection now uses an optional resident
+  llama.cpp helper with per-request option-ID grammar, deadlines, and offline
+  fallback. Term-description rubrics remain unimplemented. Jev tests use local
+  fixtures, not a paid API. Real GGUF grammar/transport passed with a small
+  instruction model; selection accuracy is not certified.
 - M4: blocked on native context-bias and encoder/decode-range APIs absent from
   pinned transcribe.cpp 0.3.1. No second pass or decoder boosts are attempted.
   No upstream dependency source was modified.
@@ -475,9 +478,14 @@ per the implementation follow-up. No latency or accuracy target is claimed.
   currently means recording finalization. Corrections run in the existing ASR
   worker with nonblocking corrector locking, not a separate SPSC worker.
   Rolling decoder boosts and EOU acoustic re-decoding depend on M4.
-- M6: observed pronunciation source is accepted by the builder. Synthetic
-  evaluation, learned costs, and focused-window project detection remain
-  unimplemented.
+- M6: synthetic carrier audio generation (espeak-ng), JSONL manifests,
+  carrier-aligned evaluation with WER/term recall, reviewed-pair import,
+  deduplicated observed variants, and embedded learned substitution costs
+  implemented. Opt-in automatic project detection supports Hyprland, Sway,
+  and X11 with shell-child cwd discovery and explicit-selection priority.
+  Unsupported Wayland compositors and ambiguous terminals need explicit
+  selection. Live TTS/evaluation validation needs espeak-ng installed; no
+  held-out accuracy or false-correction target is claimed.
 
 Build in seven steps, each shippable on its own; text-level correction alone (M2) should already give most of the term-recall gain.
 

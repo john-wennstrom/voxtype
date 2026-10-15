@@ -1,1358 +1,335 @@
+0	Voxtype	user	V AA K S T AY P	1.0
 0	Voxtype	split	V AA K S T W IH P	1.0
-1	Whisper	cmudict	W IH S P ER	1.0
-1	Whisper	cmudict	HH W IH S P ER	1.0
-2	Parakeet	cmudict	P EH R AH K IY T	1.0
-3	Nemotron	split	N EH M AH T ER N	1.0
-4	Granite	cmudict	G R AE N AH T	1.0
-4	Granite	cmudict	G R AE N IH T	1.0
-5	Cohere	cmudict	K OW HH IH R	1.0
-6	Moonshine	cmudict	M UW N SH AY N	1.0
-7	SenseVoice	split	S EH N S V OY S	1.0
-8	Paraformer	split	P EH R AH F AO R M ER	1.0
-9	Dolphin	cmudict	D AA L F AH N	1.0
-10	Omnilingual	split	AA M N IH L Y AH G AH L	1.0
-11	Soniox	split	S AA N IY OW S	1.0
-12	Vosk	split	V AO S K	1.0
-13	Kaldi	split	K AA L D IY	1.0
-14	DeepSpeech	split	D IY P S P IY CH	1.0
-15	SpeechBrain	split	S P IY CH B R EY N	1.0
-16	NeMo	cmudict	N EH M OW	1.0
-16	NeMo	split	N IY M OW	1.0
-16	NeMo	split	N EY M OW	1.0
-17	Wav2Vec	split	W AA V T UW V EH K	1.0
-18	HuBERT	cmudict	HH Y UW B ER T	1.0
-18	HuBERT	split	HH UW B ER T	1.0
-18	HuBERT	acronym	HH UW B IY IY AA R T IY	1.0
-19	Conformer	split	K AH N F AO R M ER	1.0
-20	Zipformer	split	Z IH P F ER M ER	1.0
-21	FastConformer	split	F AE S T K AH N F AO R M ER	1.0
-22	WeNet	split	W IY N EH T	1.0
-23	FunASR	split	F AH N AA S ER	1.0
-23	FunASR	acronym	F AH N EY EH S AA R	1.0
-23	FunASR	acronym	F AH N AY EH S AA R	1.0
-24	Silero	split	S IH L EH R OW	1.0
-25	Pyannote	split	P Y AA N AH T OW	1.0
-26	Scribe	cmudict	S K R AY B	1.0
-27	ElevenLabs	split	IH L EH V AH N L AE B Z	1.0
-27	ElevenLabs	split	IY L EH V AH N L AE B Z	1.0
-28	OpenAI	split	OW P AH N AY	1.0
-28	OpenAI	split	OW P AH N EY AY	1.0
-28	OpenAI	acronym	OW P AH N AY AY	1.0
-29	Anthropic	split	AE N TH R AH P IH K	1.0
-30	HuggingFace	split	HH AH G IH NG F EY S	1.0
-31	Ollama	split	OW L AA M AH	1.0
-32	Gemini	cmudict	JH EH M AH N AY	1.0
-32	Gemini	cmudict	JH EH M AH N IY	1.0
-33	Llama	cmudict	L AA M AH	1.0
-34	Mistral	cmudict	M IH S T R AH L	1.0
-35	Qwen	split	K W EH N	1.0
-36	Gemma	cmudict	JH EH M AH	1.0
-37	Phi	cmudict	F AY	1.0
-38	GPT	split	G EH T S	1.0
-38	GPT	acronym	JH IY P IY T IY	1.0
-39	BERT	cmudict	B ER T	1.0
-39	BERT	acronym	B IY IY AA R T IY	1.0
-40	RoBERTa	cmudict	R AH B ER T AH	1.0
-40	RoBERTa	split	R OW B EH R T AA	1.0
-40	RoBERTa	acronym	R OW B IY IY AA R T AA	1.0
-41	DistilBERT	split	D IH S T IH L B ER T	1.0
-41	DistilBERT	acronym	D IH S T IH L B IY IY AA R T IY	1.0
-42	T5	split	T IY F AY V	1.0
-43	BART	cmudict	B AA R T	1.0
-43	BART	acronym	B IY EY AA R T IY	1.0
-43	BART	acronym	B IY AY AA R T IY	1.0
-44	XLNet	split	K EH L S N EH T	1.0
-44	XLNet	acronym	EH K S EH L N EH T	1.0
-45	ALBERT	cmudict	AE L B ER T	1.0
-46	DeBERTa	split	D IY B EH R T AA	1.0
-46	DeBERTa	split	D EY B EH R T AA	1.0
-46	DeBERTa	split	D AH B EH R T AA	1.0
-46	DeBERTa	acronym	D IY B IY IY AA R T AA	1.0
-46	DeBERTa	acronym	D EY B IY IY AA R T AA	1.0
-46	DeBERTa	acronym	D AH B IY IY AA R T AA	1.0
-47	Electra	cmudict	IH L EH K T R AH	1.0
-48	Falcon	cmudict	F AE L K AH N	1.0
-49	DeepSeek	split	D IY P S IY K	1.0
-50	transcription	cmudict	T R AE N S K R IH P SH AH N	1.0
-51	dictation	cmudict	D IH K T EY SH AH N	1.0
-52	recognition	cmudict	R EH K AH G N IH SH AH N	1.0
-52	recognition	cmudict	R EH K IH G N IH SH AH N	1.0
-53	utterance	cmudict	AH T ER AH N S	1.0
-54	phoneme	cmudict	F OW N IY M	1.0
-55	grapheme	split	G R AE F IY M	1.0
-56	lexicon	cmudict	L EH K S IH K AA N	1.0
-57	lexicalization	split	L EH K S AH K AH Z AH L EY SH AH N	1.0
-58	pronunciation	cmudict	P R OW N AH N S IY EY SH AH N	1.0
-58	pronunciation	cmudict	P R AH N AH N S IY EY SH AH N	1.0
-59	vocabulary	cmudict	V OW K AE B Y AH L EH R IY	1.0
-60	homophone	cmudict	HH OW M OW F OW N	1.0
-61	heteronym	split	HH EH T ER AH M AH N IY	1.0
-62	syllable	cmudict	S IH L AH B AH L	1.0
-63	prosody	cmudict	P R AA S AH D IY	1.0
-64	intonation	cmudict	IH N T AH N EY SH AH N	1.0
-65	stress	cmudict	S T R EH S	1.0
-66	phonetics	cmudict	F AH N EH T IH K S	1.0
-67	phonology	cmudict	F AH N AA L AH JH IY	1.0
-68	acoustics	cmudict	AH K UW S T IH K S	1.0
-69	articulation	cmudict	AA R T IH K Y AH L EY SH AH N	1.0
-70	disfluency	split	D IH S F L AH N S IY	1.0
-71	punctuation	cmudict	P AH NG K CH UW EY SH AH N	1.0
-72	capitalization	cmudict	K AE P IH T AH L IH Z EY SH AH N	1.0
-73	normalization	cmudict	N AO R M AH L IH Z EY SH AH N	1.0
-74	tokenization	split	T AA K AH N AH Z EY SH AH N	1.0
-75	detokenization	split	D IH T AA K AH N AH Z EY SH AH N	1.0
-76	diarization	split	D AY ER IH Z EY SH AH N	1.0
-77	alignment	cmudict	AH L AY N M AH N T	1.0
-78	timestamp	split	T AY M S T AE M P	1.0
-79	confidence	cmudict	K AA N F AH D AH N S	1.0
-80	probability	cmudict	P R AA B AH B IH L AH T IY	1.0
-81	hypothesis	cmudict	HH AY P AA TH AH S AH S	1.0
-82	transcript	cmudict	T R AE N S K R IH P T	1.0
-83	verbatim	cmudict	V ER B EY T AH M	1.0
-84	filler	cmudict	F IH L ER	1.0
-85	stutter	cmudict	S T AH T ER	1.0
-86	hesitation	cmudict	HH EH Z AH T EY SH AH N	1.0
-87	pause	cmudict	P AO Z	1.0
-88	silence	cmudict	S AY L AH N S	1.0
-89	speech	cmudict	S P IY CH	1.0
-90	speaker	cmudict	S P IY K ER	1.0
-91	microphone	cmudict	M AY K R AH F OW N	1.0
-92	waveform	cmudict	W EY V F AO R M	1.0
-93	spectrogram	split	S P EH K T R AH G R AE M	1.0
-94	formant	cmudict	F AO R M AH N T	1.0
-95	pitch	cmudict	P IH CH	1.0
-96	timbre	cmudict	T IH M B ER	1.0
-97	loudness	split	L AW D N AH S	1.0
-98	amplitude	cmudict	AE M P L AH T UW D	1.0
-99	frequency	cmudict	F R IY K W AH N S IY	1.0
-100	Rust	cmudict	R AH S T	1.0
-101	Cargo	cmudict	K AA R G OW	1.0
-102	rustc	split	R AH S T	1.0
-103	rustup	split	R AH S T AH P	1.0
-104	rustfmt	split	R AH S T F T M	1.0
-105	Clippy	split	K L IH P IY	1.0
-106	Tokio	cmudict	T OW K IY OW	1.0
-107	Serde	split	S ER D	1.0
-108	Clap	cmudict	K L AE P	1.0
-109	Tracing	cmudict	T R EY S IH NG	1.0
-110	Thiserror	split	TH IH S ER ER	1.0
-111	Anyhow	cmudict	EH N IY HH AW	1.0
-112	Reqwest	split	R EH K W EH S T	1.0
-113	Hyper	cmudict	HH AY P ER	1.0
-114	Axum	split	AE K S AH M	1.0
-115	Tower	cmudict	T AW ER	1.0
-116	Tonic	cmudict	T AA N IH K	1.0
-117	Prost	cmudict	P R AA S T	1.0
-118	Bytes	cmudict	B AY T S	1.0
-119	Futures	cmudict	F Y UW CH ER Z	1.0
-120	Rayon	cmudict	R EY AH N	1.0
-121	Crossbeam	split	K R AA S B IY AH M	1.0
-122	DashMap	split	D AE SH M AE P	1.0
-123	IndexMap	split	IH N D EH K S M AE P	1.0
-124	SmallVec	split	S M AO L V EH K	1.0
-125	ArrayVec	split	ER EY V EH K	1.0
-126	Bitflags	split	B IH T F L AE G Z	1.0
-127	OnceCell	split	W AH N S S EH L	1.0
-128	LazyLock	split	L EY Z IY L AA K	1.0
-129	Regex	split	R EH JH IH K S	1.0
-130	Chrono	split	K R OW N OW	1.0
-131	Time	cmudict	T AY M	1.0
-132	Uuid	split	UW OY D	1.0
-133	Rand	cmudict	R AE N D	1.0
-134	Getrandom	split	G EH T R AH N D AH M	1.0
-135	Ring	cmudict	R IH NG	1.0
-136	Rustls	split	R AH S AH L Z	1.0
-137	Webpki	split	W EH B P K IY	1.0
-138	Ratatui	split	R AA T OW T UW SH IY	1.0
-139	Crossterm	split	K R AA S T ER M	1.0
-140	Egui	split	IY G W IY	1.0
-141	Iced	cmudict	AY S T	1.0
-142	Winit	split	W IH N IH T	1.0
-143	Wgpu	split	G W IY P	1.0
-144	Bytemuck	split	B AY T AH M K	1.0
-145	Nix	cmudict	N IH K S	1.0
-146	Libc	split	L IH B IH K	1.0
-147	Evdev	split	EH V D EH S	1.0
-148	Cpal	split	K AE L	1.0
-149	Rodio	split	R OW D IY OW	1.0
-150	Linux	cmudict	L IH N AH K S	1.0
-151	Wayland	cmudict	W EY L AH N D	1.0
-152	XWayland	split	EH K S W EY L AH N D	1.0
-153	Xorg	split	Z AO R G	1.0
-154	GNOME	cmudict	N OW M	1.0
-154	GNOME	acronym	JH IY EH N OW EH M IY	1.0
-155	KDE	split	K D IY	1.0
-155	KDE	acronym	K EY D IY IY	1.0
-156	Plasma	cmudict	P L AE Z M AH	1.0
-157	Hyprland	split	HH AY P R L AH N D	1.0
-158	Sway	cmudict	S W EY	1.0
-159	River	cmudict	R IH V ER	1.0
-160	Wayfire	split	W EY F AY ER	1.0
-161	Weston	cmudict	W EH S T AH N	1.0
-162	Niri	split	N IH R IY	1.0
-163	Labwc	split	L AE B V	1.0
-164	Mutter	cmudict	M AH T ER	1.0
-165	KWin	split	K EY W IH N	1.0
-166	Wlroots	split	L UH R UW T S	1.0
-167	Waybar	split	W EY B ER	1.0
-168	Quickshell	split	K W IH K SH AH L	1.0
-169	Omarchy	split	OW M AA R K IY	1.0
-170	Arch	cmudict	AA R CH	1.0
-171	Manjaro	split	M AA N JH AA R OW	1.0
-172	Ubuntu	cmudict	UW B UW T UW	1.0
-173	Debian	cmudict	D EH B IY AH N	1.0
-174	Fedora	cmudict	F IH D AO R AH	1.0
-175	NixOS	split	N IH K S AA S	1.0
-175	NixOS	acronym	N IH K S OW EH S	1.0
-176	Gentoo	split	JH EH N T UW	1.0
-177	Alpine	cmudict	AE L P AY N	1.0
-178	Void	cmudict	V OY D	1.0
-179	OpenSUSE	split	OW P AH N S UW Z	1.0
-179	OpenSUSE	acronym	OW P AH N EH S Y UW EH S IY	1.0
-180	Tumbleweed	split	T AH M B L W EH D	1.0
-181	Silverblue	split	S IH L V ER B L AW	1.0
-182	Kinoite	split	K AY N OY T	1.0
-183	Bazzite	split	B AE Z T AY	1.0
-184	PopOS	split	P AA P AA S	1.0
-184	PopOS	acronym	P AA P OW EH S	1.0
-185	Mint	cmudict	M IH N T	1.0
-186	EndeavourOS	split	IH N D EH V ER AA S	1.0
-186	EndeavourOS	acronym	IH N D EH V ER OW EH S	1.0
-187	CachyOS	split	K AE CH IY AA S	1.0
-187	CachyOS	acronym	K AE CH IY OW EH S	1.0
-188	Garuda	cmudict	G AH R UW D AH	1.0
-189	Rocky	cmudict	R AA K IY	1.0
-190	AlmaLinux	split	AA L M AH L IH N AH K S	1.0
-191	CentOS	split	S EH N T AA S	1.0
-191	CentOS	acronym	S EH N T OW EH S	1.0
-192	RHEL	split	R EH L	1.0
-192	RHEL	acronym	AA R EY CH IY EH L	1.0
-193	FreeBSD	split	F R IY B IY D IY	1.0
-193	FreeBSD	acronym	F R IY B IY EH S D IY	1.0
-194	OpenBSD	split	OW P AH N B IY D IY	1.0
-194	OpenBSD	acronym	OW P AH N B IY EH S D IY	1.0
-195	NetBSD	split	N EH T B IY D IY	1.0
-195	NetBSD	acronym	N EH T B IY EH S D IY	1.0
-196	Darwin	cmudict	D AA R W IH N	1.0
-197	macOS	split	M AE K AA S	1.0
-197	macOS	acronym	M AE K OW EH S	1.0
-198	Asahi	cmudict	AH S AA HH IY	1.0
-199	SteamOS	split	S T IY M AA S	1.0
-199	SteamOS	acronym	S T IY M OW EH S	1.0
-200	PipeWire	split	P AY P W AY ER	1.0
-200	PipeWire	split	P AY P W AY R	1.0
-201	PulseAudio	split	P AH L S AA D IY OW	1.0
-202	ALSA	split	AE L S AH	1.0
-202	ALSA	acronym	EY EH L EH S EY	1.0
-202	ALSA	acronym	EY EH L EH S AY	1.0
-202	ALSA	acronym	AY EH L EH S EY	1.0
-202	ALSA	acronym	AY EH L EH S AY	1.0
-203	JACK	cmudict	JH AE K	1.0
-203	JACK	acronym	JH EY EY S IY K EY	1.0
-203	JACK	acronym	JH EY AY S IY K EY	1.0
-204	WirePlumber	split	W AY ER P L AH M ER	1.0
-204	WirePlumber	split	W AY R P L AH M ER	1.0
-205	PortAudio	split	P AO R T AA D IY OW	1.0
-206	CoreAudio	split	K AO R AA D IY OW	1.0
-207	AudioUnit	split	AA D IY OW Y UW N AH T	1.0
-207	AudioUnit	split	AA D IY OW Y UW N IH T	1.0
-208	GStreamer	split	JH IY S T R IY M ER	1.0
-209	FFmpeg	split	EH F P EH M P T	1.0
-210	SoX	cmudict	S AA K S	1.0
-210	SoX	split	S OW EH K S	1.0
-211	Audacity	cmudict	AA D AE S AH T IY	1.0
-212	Ardour	split	AA R D UW R	1.0
-213	Reaper	cmudict	R IY P ER	1.0
-214	OBS	split	AA B Z	1.0
-214	OBS	acronym	OW B IY EH S	1.0
-215	loopback	split	L UW P B AE K	1.0
-216	resampling	split	R IY S AE P M IH L IH NG	1.0
-217	downsampling	split	D AW N S AH P L IH NG	1.0
-218	upsampling	split	AH P S AH P L IH NG	1.0
-219	interpolation	cmudict	IH T ER P AH L EY SH AH N	1.0
-220	decimation	cmudict	D EH S AH M EY SH AH N	1.0
-221	Nyquist	cmudict	N AY K W IH S T	1.0
-222	aliasing	split	EY L IY Z EY IH NG	1.0
-223	antialiasing	split	AE N T IY AE L Y AH S IH N	1.0
-224	clipping	cmudict	K L IH P IH NG	1.0
-225	distortion	cmudict	D IH S T AO R SH AH N	1.0
-226	dithering	cmudict	D IH DH ER IH NG	1.0
-227	quantization	split	K W AA N T AH Z EY SH AH N	1.0
-228	bitrate	split	B AY T R EY T	1.0
-229	sampleRate	split	S AE M P AH L R EY T	1.0
-230	sampleFormat	split	S AE M P AH L F AO R M AE T	1.0
-231	bufferSize	split	B AH F ER S AY Z	1.0
-232	channelCount	split	CH AE N AH L K AW N T	1.0
-233	mono	cmudict	M OW N OW	1.0
-234	stereo	cmudict	S T EH R IY OW	1.0
-235	multichannel	split	M AH L T IY K AE N AH L AH N	1.0
-236	PCM	split	K EH M P IY	1.0
-236	PCM	acronym	P IY S IY EH M	1.0
-237	WAV	split	W AA V	1.0
-237	WAV	acronym	D AH B AH L Y UW EY V IY	1.0
-237	WAV	acronym	D AH B AH L Y UW AY V IY	1.0
-238	FLAC	split	F L AE K	1.0
-238	FLAC	acronym	EH F EH L EY S IY	1.0
-238	FLAC	acronym	EH F EH L AY S IY	1.0
-239	MP3	split	P EY M TH R IY	1.0
-239	MP3	acronym	EH M P IY TH R IY	1.0
-240	Opus	cmudict	OW P AH S	1.0
-241	Vorbis	split	V AO R B IH S	1.0
-242	AAC	split	AA	1.0
-242	AAC	acronym	EY EY S IY	1.0
-242	AAC	acronym	EY AY S IY	1.0
-242	AAC	acronym	AY EY S IY	1.0
-242	AAC	acronym	AY AY S IY	1.0
-243	OGG	cmudict	AA G	1.0
-243	OGG	acronym	OW JH IY JH IY	1.0
-244	AIFF	split	EY F	1.0
-244	AIFF	acronym	EY AY EH F EH F	1.0
-244	AIFF	acronym	AY AY EH F EH F	1.0
-245	WMA	split	W IY M AH	1.0
-245	WMA	acronym	D AH B AH L Y UW EH M EY	1.0
-245	WMA	acronym	D AH B AH L Y UW EH M AY	1.0
-246	AMR	cmudict	AA M ER	1.0
-246	AMR	acronym	EY EH M AA R	1.0
-246	AMR	acronym	AY EH M AA R	1.0
-247	M4A	split	EH M F AO R AH	1.0
-247	M4A	split	EH M F AO R EY	1.0
-248	WebM	split	W EH B EH M	1.0
-249	RTP	split	T R EH P T	1.0
-249	RTP	acronym	AA R T IY P IY	1.0
-250	CUDA	split	K Y UW D AH	1.0
-250	CUDA	acronym	S IY Y UW D IY EY	1.0
-250	CUDA	acronym	S IY Y UW D IY AY	1.0
-251	Vulkan	split	V AH L K AH N	1.0
-252	ROCm	split	R OW K EH M	1.0
-252	ROCm	acronym	AA R OW S IY EH M	1.0
-253	HIP	cmudict	HH IH P	1.0
-253	HIP	acronym	EY CH AY P IY	1.0
-254	HIPBLAS	split	HH IH P B L AH S	1.0
-255	Metal	cmudict	M EH T AH L	1.0
-256	OpenCL	split	OW P AH N K EH L	1.0
-256	OpenCL	acronym	OW P AH N S IY EH L	1.0
-257	SYCL	split	S IH K AH L	1.0
-257	SYCL	acronym	EH S W AY S IY EH L	1.0
-257	SYCL	acronym	EH S HH W AY S IY EH L	1.0
-258	DirectML	split	D ER EH K T M EH L	1.0
-258	DirectML	split	D AY R EH K T M EH L	1.0
-258	DirectML	split	D IH R EH K T M EH L	1.0
-258	DirectML	acronym	D ER EH K T EH M EH L	1.0
-258	DirectML	acronym	D AY R EH K T EH M EH L	1.0
-258	DirectML	acronym	D IH R EH K T EH M EH L	1.0
-259	TensorRT	split	T EH N S ER R EH T S	1.0
-259	TensorRT	acronym	T EH N S ER AA R T IY	1.0
-260	ONNX	split	AA N K S	1.0
-260	ONNX	acronym	OW EH N EH N EH K S	1.0
-261	GGML	split	G EH M P AH L	1.0
-261	GGML	acronym	JH IY JH IY EH M EH L	1.0
-262	GGUF	split	G AH F	1.0
-262	GGUF	acronym	JH IY JH IY Y UW EH F	1.0
-263	MIGraphX	split	M IY G R AE F EH K S	1.0
-263	MIGraphX	acronym	EH M AY G R AE F EH K S	1.0
-264	cuDNN	split	K UW D IY EH N EH N	1.0
-265	cuBLAS	split	K UW B L AA S	1.0
-265	cuBLAS	acronym	K UW B IY EH L EY EH S	1.0
-265	cuBLAS	acronym	K UW B IY EH L AY EH S	1.0
-266	cuFFT	split	K UW F EH T S	1.0
-266	cuFFT	acronym	K UW EH F EH F T IY	1.0
-267	cuSPARSE	split	K UW S P AA R S	1.0
-268	NCCL	split	K EH N B AH L	1.0
-268	NCCL	acronym	EH N S IY S IY EH L	1.0
-269	NVRTC	split	EH N V ER K T	1.0
-269	NVRTC	acronym	EH N V IY AA R T IY S IY	1.0
-270	NVML	split	N AH M AH L	1.0
-270	NVML	acronym	EH N V IY EH M EH L	1.0
-271	NVTX	split	S EH N T K EH V	1.0
-271	NVTX	acronym	EH N V IY T IY EH K S	1.0
-272	PTX	split	T IY EH K S	1.0
-272	PTX	acronym	P IY T IY EH K S	1.0
-273	SPIRV	split	S P ER V	1.0
-273	SPIRV	acronym	EH S P IY AY AA R V IY	1.0
-274	GLSL	split	G L AE S AH L	1.0
-274	GLSL	acronym	JH IY EH L EH S EH L	1.0
-275	HLSL	split	HH L EH S AH L	1.0
-275	HLSL	acronym	EY CH EH L EH S EH L	1.0
-276	shader	cmudict	SH EY D ER	1.0
-277	kernel	cmudict	K ER N AH L	1.0
-278	workgroup	cmudict	W ER K G R UW P	1.0
-279	subgroup	cmudict	S AH B G R UW P	1.0
-280	warp	cmudict	W AO R P	1.0
-281	wavefront	split	W EY V F R AH N T	1.0
-282	dispatch	cmudict	D IH S P AE CH	1.0
-283	descriptor	cmudict	D IH S K R IH P T ER	1.0
-284	pipeline	cmudict	P AY P L AY N	1.0
-285	fence	cmudict	F EH N S	1.0
-286	semaphore	split	S EH M AH F ER	1.0
-287	barrier	cmudict	B AE R IY ER	1.0
-287	barrier	cmudict	B EH R IY ER	1.0
-288	VRAM	split	V R AE M	1.0
-288	VRAM	acronym	V IY AA R EY EH M	1.0
-288	VRAM	acronym	V IY AA R AY EH M	1.0
-289	SRAM	cmudict	SH R AE M	1.0
-289	SRAM	cmudict	EH S R AE M	1.0
-289	SRAM	acronym	EH S AA R EY EH M	1.0
-289	SRAM	acronym	EH S AA R AY EH M	1.0
-290	DRAM	cmudict	D R AE M	1.0
-290	DRAM	cmudict	D IY R AE M	1.0
-290	DRAM	acronym	D IY AA R EY EH M	1.0
-290	DRAM	acronym	D IY AA R AY EH M	1.0
-291	HBM	split	B AE M	1.0
-291	HBM	acronym	EY CH B IY EH M	1.0
-292	GDDR	split	D AA G D R EY	1.0
-292	GDDR	acronym	JH IY D IY D IY AA R	1.0
-293	PCIe	split	P IY S IY IY	1.0
-294	NVLink	split	EH N V L IH NG K	1.0
-294	NVLink	acronym	EH N V IY L IH NG K	1.0
-295	DMA	split	D AA M	1.0
-295	DMA	acronym	D IY EH M EY	1.0
-295	DMA	acronym	D IY EH M AY	1.0
-296	SIMD	split	S IH M D	1.0
-296	SIMD	acronym	EH S AY EH M D IY	1.0
-297	SIMT	split	S IH M T	1.0
-297	SIMT	acronym	EH S AY EH M T IY	1.0
-298	FMA	split	F AA M	1.0
-298	FMA	acronym	EH F EH M EY	1.0
-298	FMA	acronym	EH F EH M AY	1.0
-299	GFNI	split	G AH N F IY	1.0
-299	GFNI	acronym	JH IY EH F EH N AY	1.0
-300	NVIDIA	cmudict	EH N V IH D IY AH	1.0
-301	AMD	cmudict	EY EH M D IY	1.0
-301	AMD	acronym	AY EH M D IY	1.0
-302	Intel	cmudict	IH N T EH L	1.0
-303	Qualcomm	cmudict	K W AA L K AA M	1.0
-304	Apple	cmudict	AE P AH L	1.0
-305	ARM	cmudict	AA R M	1.0
-305	ARM	acronym	EY AA R EH M	1.0
-305	ARM	acronym	AY AA R EH M	1.0
-306	Ampere	cmudict	AE M P ER	1.0
-307	Ada	cmudict	EY D AH	1.0
-308	Hopper	cmudict	HH AA P ER	1.0
-309	Blackwell	cmudict	B L AE K W EH L	1.0
-310	Turing	cmudict	T UH R IH NG	1.0
-311	Volta	cmudict	V OW L T AH	1.0
-312	Pascal	cmudict	P AE S K AE L	1.0
-313	Maxwell	cmudict	M AE K S W EH L	1.0
-314	Kepler	cmudict	K EH P L ER	1.0
-315	Fermi	cmudict	F ER M IY	1.0
-316	RDNA	split	R IH N D AH	1.0
-316	RDNA	acronym	AA R D IY EH N EY	1.0
-316	RDNA	acronym	AA R D IY EH N AY	1.0
-317	CDNA	split	S IY D IY N EY	1.0
-317	CDNA	acronym	S IY D IY EH N EY	1.0
-317	CDNA	acronym	S IY D IY EH N AY	1.0
-318	Radeon	split	R EY D IY AH N	1.0
-319	GeForce	split	JH IY F AO R S	1.0
-320	Quadro	split	K W AA D R OW	1.0
-321	Tesla	cmudict	T EH S L AH	1.0
-321	Tesla	cmudict	T EH Z L AH	1.0
-322	Instinct	cmudict	IH N S T IH NG K T	1.0
-323	Xeon	split	Z IY AH N	1.0
-324	Ryzen	split	R AY Z AH N	1.0
-325	Threadripper	split	TH R EH D R IH P	1.0
-326	EPYC	split	EH P IH K	1.0
-326	EPYC	acronym	IY P IY W AY S IY	1.0
-326	EPYC	acronym	IY P IY HH W AY S IY	1.0
-327	Athlon	split	AE TH L AH N	1.0
-328	Pentium	cmudict	P EH N T IY AH M	1.0
-329	Celeron	cmudict	S EH L ER AA N	1.0
-330	Haswell	cmudict	HH AE S W EH L	1.0
-331	Broadwell	cmudict	B R AO D W EH L	1.0
-332	Skylake	split	S K AY L EY K	1.0
-333	Icelake	split	AY S L EY K	1.0
-334	Tigerlake	split	T AY G ER L EY K	1.0
-335	Alderlake	split	AE L D ER AH K AH L	1.0
-336	Raptorlake	split	R AE P T ER L AA K	1.0
-337	Nehalem	split	N AH HH EY L AH M	1.0
-338	IvyBridge	split	AY V IY B R IH JH	1.0
-339	SandyBridge	split	S AE N D IY B R IH JH	1.0
-340	Zen	cmudict	Z EH N	1.0
-341	AVX	split	AE V K S	1.0
-341	AVX	acronym	EY V IY EH K S	1.0
-341	AVX	acronym	AY V IY EH K S	1.0
-342	AVX2	split	AE V K S T UW	1.0
-342	AVX2	acronym	EY V IY EH K S T UW	1.0
-342	AVX2	acronym	AY V IY EH K S T UW	1.0
-343	AVX512	split	AE V K S F AY V W AH N T UW	1.0
-343	AVX512	acronym	EY V IY EH K S F AY V W AH N T UW	1.0
-343	AVX512	acronym	AY V IY EH K S F AY V W AH N T UW	1.0
-344	SSE	split	S IY	1.0
-344	SSE	acronym	EH S EH S IY	1.0
-345	SSE2	split	S IY T UW	1.0
-345	SSE2	acronym	EH S EH S IY T UW	1.0
-346	SSE3	split	S IY TH R IY	1.0
-346	SSE3	acronym	EH S EH S IY TH R IY	1.0
-347	SSSE3	split	S IY S TH R IY	1.0
-347	SSSE3	acronym	EH S EH S EH S IY TH R IY	1.0
-348	SSE4	split	S IY F AO R	1.0
-348	SSE4	acronym	EH S EH S IY F AO R	1.0
-349	BMI2	split	B IY M IY T UW	1.0
-349	BMI2	acronym	B IY EH M AY T UW	1.0
-350	encoder	split	EH N K OW D ER	1.0
-351	decoder	cmudict	D IH K OW D ER	1.0
-352	transformer	cmudict	T R AE N S F AO R M ER	1.0
-353	attention	cmudict	AH T EH N SH AH N	1.0
-354	embedding	cmudict	EH M B EH D IH NG	1.0
-355	tensor	cmudict	T EH N S ER	1.0
-356	matrix	cmudict	M EY T R IH K S	1.0
-357	vector	cmudict	V EH K T ER	1.0
-358	scalar	cmudict	S K EY L ER	1.0
-359	logit	split	L AA JH IH T	1.0
-360	softmax	split	S AO F T M AE K S	1.0
-361	sigmoid	cmudict	S IH G M OY D	1.0
-362	ReLU	split	R EY L UW	1.0
-362	ReLU	split	R IY L UW	1.0
-362	ReLU	acronym	R EY EH L Y UW	1.0
-362	ReLU	acronym	R IY EH L Y UW	1.0
-363	GELU	split	JH EH L UW	1.0
-363	GELU	acronym	JH IY IY EH L Y UW	1.0
-364	SiLU	split	S IY L UW	1.0
-364	SiLU	acronym	S IY EH L Y UW	1.0
-365	RMSNorm	split	R AH M Z N AO R M	1.0
-365	RMSNorm	acronym	AA R EH M EH S N AO R M	1.0
-366	LayerNorm	split	L EY ER N AO R M	1.0
-367	BatchNorm	split	B AE CH N AO R M	1.0
-368	dropout	cmudict	D R AA P AW T	1.0
-369	convolution	cmudict	K AA N V AH L UW SH AH N	1.0
-370	recurrent	cmudict	R IH K ER AH N T	1.0
-370	recurrent	cmudict	R IY K ER AH N T	1.0
-371	autoregressive	split	AO T AO R G EH S IH V	1.0
-372	bidirectional	cmudict	B IH D ER EH K SH AH N AH L	1.0
-373	causal	cmudict	K AO Z AH L	1.0
-374	noncausal	split	N AA N K AO S AH L	1.0
-375	streaming	cmudict	S T R IY M IH NG	1.0
-376	inference	cmudict	IH N F ER AH N S	1.0
-377	training	cmudict	T R EY N IH NG	1.0
-378	finetuning	split	F AY N AH T UW N IH NG	1.0
-379	distillation	cmudict	D IH S T AH L EY SH AH N	1.0
-380	pruning	cmudict	P R UW N IH NG	1.0
-381	sparsity	split	S P AA R S IH T IY	1.0
-382	activation	cmudict	AE K T AH V EY SH AH N	1.0
-383	gradient	cmudict	G R EY D IY AH N T	1.0
-384	backpropagation	split	B AE K P R AH G P EY SH AH N	1.0
-385	optimizer	split	AA P T AH M AY Z ER	1.0
-386	Adam	cmudict	AE D AH M	1.0
-387	AdamW	split	AE D AH M D AH B AH L Y UW	1.0
-388	SGD	split	S D IH G	1.0
-388	SGD	acronym	EH S JH IY D IY	1.0
-389	momentum	cmudict	M OW M EH N T AH M	1.0
-390	checkpoint	cmudict	CH EH K P OY N T	1.0
-391	weights	cmudict	W EY T S	1.0
-392	parameters	cmudict	P ER AE M AH T ER Z	1.0
-393	hyperparameters	split	HH AY P ER P AE R AH T IH M Z	1.0
-394	batch	cmudict	B AE CH	1.0
-395	epoch	cmudict	EH P AH K	1.0
-395	epoch	cmudict	IY P AH K	1.0
-396	dataset	cmudict	D EY T AH S EH T	1.0
-397	corpus	cmudict	K AO R P AH S	1.0
-398	augmentation	cmudict	AA G M EH N T EY SH AH N	1.0
-399	overfitting	split	OW V ER F IH T IH NG	1.0
-400	CTC	split	K EH CH	1.0
-400	CTC	acronym	S IY T IY S IY	1.0
-401	RNNT	split	EH N T R IY	1.0
-401	RNNT	acronym	AA R EH N EH N T IY	1.0
-402	ASR	split	AA S ER	1.0
-402	ASR	acronym	EY EH S AA R	1.0
-402	ASR	acronym	AY EH S AA R	1.0
-403	TTS	split	T IY EH N IY S	1.0
-403	TTS	acronym	T IY T IY EH S	1.0
-404	VAD	split	V AE D	1.0
-404	VAD	acronym	V IY EY D IY	1.0
-404	VAD	acronym	V IY AY D IY	1.0
-405	G2P	split	JH IY T UW P IY	1.0
-406	ARPAbet	split	AA R P AH B EH T	1.0
-406	ARPAbet	acronym	EY AA R P IY AH B EH T	1.0
-406	ARPAbet	acronym	AY AA R P IY AH B EH T	1.0
-407	IPA	split	IY P AH	1.0
-407	IPA	acronym	AY P IY EY	1.0
-407	IPA	acronym	AY P IY AY	1.0
-408	CMUdict	cmudict	S IY EH M Y UW D IH K T	1.0
-408	CMUdict	split	K EH M AH D IH K T	1.0
-408	CMUdict	acronym	S IY EH M AH D IH K T	1.0
-409	MFCC	split	F EY CH	1.0
-409	MFCC	acronym	EH M EH F S IY S IY	1.0
-410	FFT	split	F EH T S	1.0
-410	FFT	acronym	EH F EH F T IY	1.0
-411	STFT	split	S T EH F T AH N T	1.0
-411	STFT	acronym	EH S T IY EH F T IY	1.0
-412	DFT	split	F EH T S	1.0
-412	DFT	acronym	D IY EH F T IY	1.0
-413	DCT	split	D K AE T S	1.0
-413	DCT	acronym	D IY S IY T IY	1.0
-414	SNR	split	S ER N	1.0
-414	SNR	acronym	EH S EH N AA R	1.0
-415	WER	split	W EH R	1.0
-415	WER	acronym	D AH B AH L Y UW IY AA R	1.0
-416	CER	split	S EH R	1.0
-416	CER	acronym	S IY IY AA R	1.0
-417	BLEU	cmudict	B L UW	1.0
-417	BLEU	acronym	B IY EH L IY Y UW	1.0
-418	ROUGE	cmudict	R UW ZH	1.0
-418	ROUGE	acronym	AA R OW Y UW JH IY IY	1.0
-419	perplexity	cmudict	P ER P L EH K S AH T IY	1.0
-420	beamSearch	split	B IY M S ER CH	1.0
-421	greedySearch	split	G R IY D IY S ER CH	1.0
-422	topK	split	T AA P K EY	1.0
-422	topK	split	T AO P K EY	1.0
-423	topP	cmudict	T AA P	1.0
-423	topP	split	T AA P P IY	1.0
-423	topP	split	T AO P P IY	1.0
-424	temperature	cmudict	T EH M P R AH CH ER	1.0
-424	temperature	cmudict	T EH M P ER AH CH ER	1.0
-425	blankToken	split	B L AE NG K T OW K AH N	1.0
-426	wordBoundary	split	W ER D B AW N D ER IY	1.0
-426	wordBoundary	split	W ER D B AW N D R IY	1.0
-427	tokenBoundary	split	T OW K AH N B AW N D ER IY	1.0
-427	tokenBoundary	split	T OW K AH N B AW N D R IY	1.0
-428	sentenceBoundary	split	S EH N T AH N S B AW N D ER IY	1.0
-428	sentenceBoundary	split	S EH N T AH N S B AW N D R IY	1.0
-429	endpointing	split	EH N D P OY N T IH NG	1.0
-430	chunking	split	CH AH NG K IH NG	1.0
-431	windowing	split	W IH N D AW IH NG	1.0
-432	lookahead	split	L UH K HH EH D	1.0
-433	melScale	split	M EH L S K EY L	1.0
-434	melFilterbank	split	M EH L F IH L T ER B AE NG K	1.0
-435	logMel	split	L AO G M EH L	1.0
-436	preemphasis	split	P R IY IH M F S IY Z IH S	1.0
-437	denoising	split	D EH N AH S AY IH NG	1.0
-438	dereverberation	split	D EH R AH V ER B EH R IY AH N T	1.0
-439	echoCancellation	split	EH K OW K AE N S AH L EY SH AH N	1.0
-440	noiseSuppression	split	N OY Z S AH P R EH SH AH N	1.0
-441	voiceActivity	split	V OY S AE K T IH V AH T IY	1.0
-441	voiceActivity	split	V OY S AE K T IH V IH T IY	1.0
-442	speakerEmbedding	split	S P IY K ER EH M B EH D IH NG	1.0
-443	speakerIdentification	split	S P IY K ER AY D EH N T AH F AH K EY SH AH N	1.0
-444	speakerVerification	split	S P IY K ER V EH R AH F AH K EY SH AH N	1.0
-445	forcedAlignment	split	F AO R S T AH L AY N M AH N T	1.0
-446	inverseTextNormalization	split	IH N V ER S T EH K S T N AO R M AH L IH Z EY SH AH N	1.0
-447	contextBiasing	split	K AA N T EH K S T B AY S IH NG	1.0
-448	hotword	split	HH AA T W ER D	1.0
-449	keyword	cmudict	K IY W ER D	1.0
-450	wtype	split	T W AY P	1.0
-451	dotool	split	D OW T AO L	1.0
-452	ydotool	split	Y IH D OW T AH L	1.0
-453	ydotoold	split	IH D UW T OW L D	1.0
-454	xdotool	split	Z D AA K W AH L	1.0
-455	kdotool	split	K D AA T UW L	1.0
-456	eitype	split	AY T AY P	1.0
-457	wl-copy	split	W IH L D AE SH K AA P IY	1.0
-457	wl-copy	split	W IH L K AA P IY	1.0
-457	wl-copy	acronym	D AH B AH L Y UW EH L K AA P IY	1.0
-458	wl-paste	split	W IH L D AE SH P EY S T	1.0
-458	wl-paste	split	W IH L P EY S T	1.0
-458	wl-paste	acronym	D AH B AH L Y UW EH L P EY S T	1.0
-459	xclip	split	K S IH L K P	1.0
-460	xsel	split	Z EH L	1.0
-461	uinput	split	Y UW P AH N T	1.0
-462	libinput	split	L IH B IH P AH N T	1.0
-463	libei	split	L AY B IY	1.0
-464	libeis	split	L AY B AY Z	1.0
-465	xkbcommon	split	B K AA S K AH M AO N	1.0
-466	xkbcomp	split	Z K AA B M K AO P	1.0
-467	setxkbmap	split	S EH T S K AA N P ER	1.0
-468	keymap	split	K IY M AE P	1.0
-469	keysym	split	K IY S IY AH M	1.0
-470	keycode	split	K IY K OW D	1.0
-471	scancode	split	S K AE N D K OW D	1.0
-472	modifier	cmudict	M AA D AH F AY ER	1.0
-473	hotkey	split	HH AA T K IY	1.0
-474	keybinding	split	K IY B AH N D IH NG	1.0
-475	shortcut	cmudict	SH AO R T K AH T	1.0
-476	compositor	split	K AH M P AA Z AH T AO R T IY	1.0
-477	clipboard	cmudict	K L IH P B AO R D	1.0
-478	selection	cmudict	S AH L EH K SH AH N	1.0
-479	primarySelection	split	P R AY M EH R IY S AH L EH K SH AH N	1.0
-480	focus	cmudict	F OW K AH S	1.0
-480	focus	cmudict	F OW K IH S	1.0
-481	activationToken	split	AE K T AH V EY SH AH N T OW K AH N	1.0
-482	portal	cmudict	P AO R T AH L	1.0
-483	DBus	split	D IY B AH S	1.0
-484	XDG	split	D IH G Z	1.0
-484	XDG	acronym	EH K S D IY JH IY	1.0
-485	EIS	cmudict	AY Z	1.0
-485	EIS	acronym	IY AY EH S	1.0
-486	EIC	split	IY T IY	1.0
-486	EIC	acronym	IY AY S IY	1.0
-487	XTest	split	EH K S T EH S T	1.0
-488	XInput	split	EH K S IH N P UH T	1.0
-489	XFixes	split	EH K S F IH K S IH Z	1.0
-490	XRender	split	EH K S R EH N D ER	1.0
-491	XComposite	split	EH K S K AH M P AA Z AH T	1.0
-491	XComposite	split	EH K S K AA M P AA Z AH T	1.0
-492	XDamage	split	EH K S D AE M AH JH	1.0
-492	XDamage	split	EH K S D AE M IH JH	1.0
-493	XRandR	split	EH K S R AE N D AA R	1.0
-494	Xinerama	split	Z IH N ER AH M AH	1.0
-495	XQuartz	split	EH K S K W AO R T S	1.0
-496	Super	cmudict	S UW P ER	1.0
-497	Ctrl	split	K R EH TH	1.0
-497	Ctrl	acronym	S IY T IY AA R EH L	1.0
-498	Alt	cmudict	AA L T	1.0
-499	Shift	cmudict	SH IH F T	1.0
-500	systemd	split	S IH S T AH M D	1.0
-501	systemctl	split	S IH S T EH M P T AH L	1.0
-502	journalctl	split	JH ER N AH K L AH T	1.0
-503	loginctl	split	L AA JH IH NG K AH L	1.0
-504	busctl	split	B AH S K T AH L	1.0
-505	hostnamectl	split	HH AA S T N AH M EH T AH K	1.0
-506	timedatectl	split	T AY M D EY T AH K	1.0
-507	localectl	split	L OW K AH L EH K T	1.0
-508	networkctl	split	N EH T W ER K T	1.0
-509	resolvectl	split	R EH Z AH L V EH K T IH V	1.0
-510	udev	split	Y UW D EH V	1.0
-511	udevadm	split	Y UW D EY V IH D	1.0
-512	polkit	split	P OW L K IH T	1.0
-513	logind	split	L AA JH IH N D	1.0
-514	dbus-daemon	split	D B UW Z D AE SH D IY M AH N	1.0
-514	dbus-daemon	split	D B UW Z D AE SH D EY M AH N	1.0
-514	dbus-daemon	split	D B UW Z D IY M AH N	1.0
-514	dbus-daemon	split	D B UW Z D EY M AH N	1.0
-515	dbus-broker	split	D B UW Z D AE SH B R OW K ER	1.0
-515	dbus-broker	split	D B UW Z B R OW K ER	1.0
-516	seatd	split	S IY T AH D	1.0
-517	elogind	split	IH L AA JH AH N D	1.0
-518	daemon	cmudict	D IY M AH N	1.0
-518	daemon	cmudict	D EY M AH N	1.0
-519	service	cmudict	S ER V AH S	1.0
-519	service	cmudict	S ER V IH S	1.0
-520	socket	cmudict	S AA K AH T	1.0
-521	timer	cmudict	T AY M ER	1.0
-522	target	cmudict	T AA R G AH T	1.0
-522	target	cmudict	T ER G AH T	1.0
-523	unit	cmudict	Y UW N AH T	1.0
-523	unit	cmudict	Y UW N IH T	1.0
-524	session	cmudict	S EH SH AH N	1.0
-525	linger	cmudict	L IH NG G ER	1.0
-525	linger	cmudict	L IH NG ER	1.0
-526	cgroup	split	G R UW P	1.0
-527	namespace	split	N EY M S P EY S	1.0
-528	seccomp	split	S EH K S AA M P HH EY AH	1.0
-529	AppArmor	split	AE P AA R M ER	1.0
-530	SELinux	split	S EY L IH N AH K S	1.0
-530	SELinux	acronym	EH S IY L IH N AH K S	1.0
-531	capability	cmudict	K EY P AH B IH L AH T IY	1.0
-532	permission	cmudict	P ER M IH SH AH N	1.0
-533	ownership	cmudict	OW N ER SH IH P	1.0
-534	symlink	split	S IH M L IH NG K	1.0
-535	hardlink	split	HH AA R D L AH N K	1.0
-536	inode	split	IH N OW D	1.0
-537	filesystem	split	F AY L S IH S T AH M	1.0
-538	procfs	split	P R AA K S IH Z	1.0
-539	sysfs	split	S IH S F S	1.0
-539	sysfs	acronym	EH S W AY EH S EH F EH S	1.0
-539	sysfs	acronym	EH S HH W AY EH S EH F EH S	1.0
-540	tmpfs	split	T EH P F S M	1.0
-540	tmpfs	acronym	T IY EH M P IY EH F EH S	1.0
-541	devtmpfs	split	D EH V T F M P AE NG Z	1.0
-542	ext4	split	EH K S T F AO R	1.0
-543	Btrfs	split	F ER T S	1.0
-543	Btrfs	acronym	B IY T IY AA R EH F EH S	1.0
-544	ZFS	split	Z EH F S	1.0
-544	ZFS	acronym	Z IY EH F EH S	1.0
-545	XFS	split	G EH F S K	1.0
-545	XFS	acronym	EH K S EH F EH S	1.0
-546	FUSE	cmudict	F Y UW Z	1.0
-546	FUSE	acronym	EH F Y UW EH S IY	1.0
-547	OverlayFS	split	OW V ER L EY F S	1.0
-547	OverlayFS	split	OW V ER L EY EH F EH S	1.0
-548	SquashFS	split	S K W AA SH F S	1.0
-548	SquashFS	split	S K W AA SH EH F EH S	1.0
-549	LUKS	cmudict	L AH K S	1.0
-549	LUKS	acronym	EH L Y UW K EY EH S	1.0
-550	Bash	cmudict	B AE SH	1.0
-551	Zsh	split	Z IY	1.0
-551	Zsh	acronym	Z IY EH S EY CH	1.0
-552	Fish	cmudict	F IH SH	1.0
-553	Dash	cmudict	D AE SH	1.0
-554	Nushell	split	N AH SH AH L	1.0
-555	sh	cmudict	SH	1.0
-555	sh	acronym	EH S EY CH	1.0
-556	awk	split	AO K	1.0
-557	sed	split	S EH D	1.0
-558	grep	split	G R EH P	1.0
-559	ripgrep	split	R IH P R EH P	1.0
-560	rg	split	R EH G R	1.0
-560	rg	acronym	AA R JH IY	1.0
-561	fd	split	F EH D	1.0
-561	fd	acronym	EH F D IY	1.0
-562	find	cmudict	F AY N D	1.0
-563	xargs	split	Z AA R G Z	1.0
-564	fzf	split	F EH F S	1.0
-564	fzf	acronym	EH F Z IY EH F	1.0
-565	bat	cmudict	B AE T	1.0
-566	cat	cmudict	K AE T	1.0
-567	head	cmudict	HH EH D	1.0
-568	tail	cmudict	T EY L	1.0
-569	less	cmudict	L EH S	1.0
-570	more	cmudict	M AO R	1.0
-571	sort	cmudict	S AO R T	1.0
-572	uniq	split	Y UW N IH K	1.0
-573	cut	cmudict	K AH T	1.0
-574	paste	cmudict	P EY S T	1.0
-575	tr	split	T ER	1.0
-575	tr	acronym	T IY AA R	1.0
-576	wc	split	V IH	1.0
-576	wc	acronym	D AH B AH L Y UW S IY	1.0
-577	tee	cmudict	T IY	1.0
-578	printf	split	P R IH N T F	1.0
-579	echo	cmudict	EH K OW	1.0
-580	env	split	EH N V	1.0
-581	export	cmudict	EH K S P AO R T	1.0
-582	source	cmudict	S AO R S	1.0
-583	alias	cmudict	EY L IY AH S	1.0
-584	which	cmudict	W IH CH	1.0
-584	which	cmudict	HH W IH CH	1.0
-585	whereis	split	W EH R IY Z	1.0
-586	getent	split	G IY T AH N T	1.0
-587	readlink	split	R EH D AH L K IH NG	1.0
-588	realpath	split	R IY L AE P TH IY	1.0
-589	dirname	split	D ER N AH M	1.0
-590	basename	split	B AA S AH N EY M	1.0
-591	mktemp	split	M EY K T AH M P	1.0
-592	mkdir	split	M AH K D IH R	1.0
-593	rmdir	split	M R IH D ER	1.0
-594	touch	cmudict	T AH CH	1.0
-595	chmod	split	CH AA M D	1.0
-596	chown	split	CH AW N	1.0
-597	umask	split	Y UW M AE S K	1.0
-598	stat	cmudict	S T AE T	1.0
-599	file	cmudict	F AY L	1.0
-600	Git	cmudict	G IH T	1.0
-601	GitHub	cmudict	G IH T HH AH B	1.0
-602	GitLab	split	G IH T L AE B	1.0
-603	Codeberg	split	K OW D B ER G	1.0
-604	Gitea	split	JH IY T IY AH	1.0
-605	Forgejo	split	F ER JH EY Y OW	1.0
-606	Bitbucket	split	B IH T B AH K AH T	1.0
-607	commit	cmudict	K AH M IH T	1.0
-608	branch	cmudict	B R AE N CH	1.0
-609	merge	cmudict	M ER JH	1.0
-610	rebase	split	R IH B EY S	1.0
-611	cherry-pick	split	CH EH R IY D AE SH P IH K	1.0
-611	cherry-pick	split	CH EH R IY P IH K	1.0
-612	bisect	split	B AY S EH T K	1.0
-613	reflog	split	R IY F L AO G	1.0
-614	stash	cmudict	S T AE SH	1.0
-615	worktree	split	W ER K T R IY	1.0
-616	submodule	split	S AH B M AH D UW	1.0
-617	remote	cmudict	R IH M OW T	1.0
-617	remote	cmudict	R IY M OW T	1.0
-618	upstream	cmudict	AH P S T R IY M	1.0
-619	origin	cmudict	AO R AH JH AH N	1.0
-620	fetch	cmudict	F EH CH	1.0
-621	pull	cmudict	P UH L	1.0
-622	push	cmudict	P UH SH	1.0
-623	clone	cmudict	K L OW N	1.0
-624	checkout	cmudict	CH EH K AW T	1.0
-625	switch	cmudict	S W IH CH	1.0
-626	restore	cmudict	R IH S T AO R	1.0
-627	reset	cmudict	R IY S EH T	1.0
-628	revert	cmudict	R IH V ER T	1.0
-628	revert	cmudict	R IY V ER T	1.0
-629	diff	cmudict	D IH F	1.0
-630	patch	cmudict	P AE CH	1.0
-631	blame	cmudict	B L EY M	1.0
-632	tag	cmudict	T AE G	1.0
-633	release	cmudict	R IY L IY S	1.0
-634	prerelease	split	P R IY R IY L IY Z	1.0
-635	milestone	cmudict	M AY L S T OW N	1.0
-636	issue	cmudict	IH SH UW	1.0
-637	label	cmudict	L EY B AH L	1.0
-638	assignee	split	AH S IH G N IY	1.0
-639	reviewer	cmudict	R IY V Y UW ER	1.0
-640	maintainer	split	M EY N T EY N ER	1.0
-641	contributor	cmudict	K AH N T R IH B Y AH T ER	1.0
-642	coauthor	cmudict	K OW AA TH ER	1.0
-643	GPG	split	G EH P T IY	1.0
-643	GPG	acronym	JH IY P IY JH IY	1.0
-644	GnuPG	split	N UW P IY JH IY EH F	1.0
-644	GnuPG	acronym	N UW P IY JH IY	1.0
-645	SSH	split	SH IY	1.0
-645	SSH	acronym	EH S EH S EY CH	1.0
-646	OpenSSH	split	OW P AH N SH IY	1.0
-646	OpenSSH	acronym	OW P AH N EH S EH S EY CH	1.0
-647	Ed25519	split	EH D T UW F AY V F AY V W AH N N AY N	1.0
-648	RSA	split	S R EY	1.0
-648	RSA	acronym	AA R EH S EY	1.0
-648	RSA	acronym	AA R EH S AY	1.0
-649	fingerprint	cmudict	F IH NG G ER P R IH N T	1.0
-650	Docker	cmudict	D AA K ER	1.0
-651	Podman	split	P AA D M AH N	1.0
-652	Buildah	split	B IH L D AH	1.0
-653	Skopeo	split	S K OW P IY OW	1.0
-654	Containerd	split	K AH N T EY N ER D	1.0
-655	Runc	split	R AH N K	1.0
-656	Kubernetes	split	K AH B ER N AH T S	1.0
-657	Kubectl	split	K Y UW B AH K T	1.0
-658	Helm	cmudict	HH EH L M	1.0
-659	Kustomize	split	K AH S T AH M AY Z	1.0
-660	Compose	cmudict	K AH M P OW Z	1.0
-661	Dockerfile	split	D AA K ER F IH L	1.0
-662	BuildKit	split	B IH L D K IH T	1.0
-663	Buildx	split	B IH L D EH K S	1.0
-664	container	cmudict	K AH N T EY N ER	1.0
-665	image	cmudict	IH M AH JH	1.0
-665	image	cmudict	IH M IH JH	1.0
-666	registry	cmudict	R EH JH IH S T R IY	1.0
-667	repository	cmudict	R IY P AA Z AH T AO R IY	1.0
-668	artifact	cmudict	AA R T AH F AE K T	1.0
-669	layer	cmudict	L EY ER	1.0
-670	volume	cmudict	V AA L Y UW M	1.0
-671	bindMount	split	B AY N D M AW N T	1.0
-672	entrypoint	split	IH N T R OY P AH N T	1.0
-673	healthcheck	split	HH EH L TH K EH K	1.0
-674	devcontainer	split	D EH K V AH N T EY N ER	1.0
-675	AppImage	split	AE P IH M AH JH	1.0
-675	AppImage	split	AE P IH M IH JH	1.0
-676	Flatpak	split	F L AE T P AE K	1.0
-677	Snap	cmudict	S N AE P	1.0
-678	AUR	split	AO R	1.0
-678	AUR	acronym	EY Y UW AA R	1.0
-678	AUR	acronym	AY Y UW AA R	1.0
-679	PKGBUILD	split	K AH B G W IH L D	1.0
-680	SRCINFO	split	S K R IH F N OW D	1.0
-681	makepkg	split	M AE K IH P G	1.0
-682	pacman	cmudict	P AE K M AH N	1.0
-683	yay	cmudict	Y EY	1.0
-684	paru	split	P AA R UW	1.0
-685	dpkg	split	D AH P G	1.0
-685	dpkg	acronym	D IY P IY K EY JH IY	1.0
-686	apt	cmudict	AE P T	1.0
-687	aptitude	cmudict	AE P T AH T UW D	1.0
-688	deb	cmudict	D EH B	1.0
-689	rpm	cmudict	AA R P IY EH M	1.0
-690	dnf	split	D EH N F	1.0
-690	dnf	acronym	D IY EH N EH F	1.0
-691	yum	cmudict	Y AH M	1.0
-692	zypper	split	Z IH P ER	1.0
-693	Homebrew	split	HH OW M B R UW	1.0
-694	nfpm	split	EH N F EY M	1.0
-694	nfpm	acronym	EH N EH F P IY EH M	1.0
-695	fpm	split	F EH M P IY	1.0
-695	fpm	acronym	EH F P IY EH M	1.0
-696	rpmbuild	split	P AE N CH W IH L D	1.0
-697	Debhelper	split	D EH B IH F L ER	1.0
-698	Lintian	split	L IH N SH AH N	1.0
-699	Namcap	split	N AE M K AE P	1.0
-700	CMake	split	S IY M EY K	1.0
-701	Ninja	cmudict	N IH N JH AH	1.0
-702	Make	cmudict	M EY K	1.0
-703	Meson	cmudict	M EY Z AA N	1.0
-704	Autoconf	split	AO T OW K AA F	1.0
-705	Automake	split	AO T AH M OW K	1.0
-706	Libtool	split	L IH B T OW L	1.0
-707	pkg-config	split	K EH P G IY EH S D AE SH K AA N F IH G	1.0
-707	pkg-config	split	K EH P G IY EH S K AA N F IH G	1.0
-707	pkg-config	acronym	P IY K EY JH IY K AA N F IH G	1.0
-708	GCC	split	G EH K S IY	1.0
-708	GCC	acronym	JH IY S IY S IY	1.0
-709	Gplusplus	split	P L AH S P AH L S AH S	1.0
-710	Clang	cmudict	K L AE NG	1.0
-711	LLVM	split	L EH V M	1.0
-711	LLVM	acronym	EH L EH L V IY EH M	1.0
-712	LLD	split	L EH D	1.0
-712	LLD	acronym	EH L EH L D IY	1.0
-713	LD	split	L EH D	1.0
-713	LD	acronym	EH L D IY	1.0
-714	Binutils	split	B IH N AH T AH L Z	1.0
-715	objdump	split	B AA JH D AH M P	1.0
-716	readelf	split	R IY D AH L F	1.0
-717	nm	split	EH N	1.0
-717	nm	acronym	EH N EH M	1.0
-718	ar	cmudict	AA R	1.0
-719	ranlib	split	R AE N L IH B	1.0
-720	strip	cmudict	S T R IH P	1.0
-721	patchelf	split	P AE CH IH L F	1.0
-722	ldd	split	EH L D EH M	1.0
-722	ldd	acronym	EH L D IY D IY	1.0
-723	glibc	split	G L IH B	1.0
-724	musl	split	M AH S AH L	1.0
-725	libstdc++	split	L IH JH S T S K P L AH S P L AH S	1.0
-725	libstdc++	split	L IH JH S T S K	1.0
-726	libgcc	split	L IH B IH K	1.0
-727	libunwind	split	L IH B AH N W IH N D	1.0
-728	libdl	split	L IH D AH B AH L	1.0
-729	libm	split	L IH B M	1.0
-730	pthread	split	TH R EH D	1.0
-731	ELF	cmudict	EH L F	1.0
-731	ELF	acronym	IY EH L EH F	1.0
-732	MachO	cmudict	M AA CH OW	1.0
-732	MachO	split	M AA K OW	1.0
-733	DWARF	cmudict	D W AO R F	1.0
-733	DWARF	acronym	D IY D AH B AH L Y UW EY AA R EH F	1.0
-733	DWARF	acronym	D IY D AH B AH L Y UW AY AA R EH F	1.0
-734	ABI	split	AE B IY	1.0
-734	ABI	acronym	EY B IY AY	1.0
-734	ABI	acronym	AY B IY AY	1.0
-735	API	cmudict	EY P IY AY	1.0
-735	API	acronym	AY P IY AY	1.0
-736	FFI	split	F IH F IY	1.0
-736	FFI	acronym	EH F EH F AY	1.0
-737	LTO	split	L T UW	1.0
-737	LTO	acronym	EH L T IY OW	1.0
-738	PGO	split	P OW	1.0
-738	PGO	acronym	P IY JH IY OW	1.0
-739	RPATH	split	P AE TH	1.0
-739	RPATH	acronym	AA R P IY EY T IY EY CH	1.0
-739	RPATH	acronym	AA R P IY AY T IY EY CH	1.0
-740	RUNPATH	split	R AH N P AE TH	1.0
-741	SONAME	split	S AA N AH M	1.0
-742	toolchain	split	T UW L CH EY N	1.0
-743	crossCompilation	split	K R AO S K AA M P AH L EY SH AH N	1.0
-744	linker	cmudict	L IH NG K ER	1.0
-745	assembler	cmudict	AH S EH M B L ER	1.0
-746	preprocessor	split	P R IY P R OW S ER Z	1.0
-747	sysroot	split	S IH S R OW T	1.0
-748	bindgen	split	B IH N D AH N	1.0
-749	ccache	split	K AE SH	1.0
-750	Python	cmudict	P AY TH AA N	1.0
-751	CPython	split	S IY P AY TH AA N	1.0
-752	PyPy	split	P AY P AY	1.0
-752	PyPy	acronym	P IY W AY P IY W AY	1.0
-752	PyPy	acronym	P IY W AY P IY HH W AY	1.0
-752	PyPy	acronym	P IY HH W AY P IY W AY	1.0
-752	PyPy	acronym	P IY HH W AY P IY HH W AY	1.0
-753	PyTorch	split	P AY T AO R CH	1.0
-753	PyTorch	acronym	P IY W AY T AO R CH	1.0
-753	PyTorch	acronym	P IY HH W AY T AO R CH	1.0
-754	TensorFlow	split	T EH N S ER F L OW	1.0
-755	JAX	split	JH AE K S	1.0
-755	JAX	acronym	JH EY EY EH K S	1.0
-755	JAX	acronym	JH EY AY EH K S	1.0
-756	NumPy	split	N AH M P AY	1.0
-756	NumPy	acronym	N AH M P IY W AY	1.0
-756	NumPy	acronym	N AH M P IY HH W AY	1.0
-757	SciPy	split	S IY P AY	1.0
-757	SciPy	split	EH S S IY AY P AY	1.0
-757	SciPy	acronym	S IY P IY W AY	1.0
-757	SciPy	acronym	S IY P IY HH W AY	1.0
-757	SciPy	acronym	EH S S IY AY P IY W AY	1.0
-757	SciPy	acronym	EH S S IY AY P IY HH W AY	1.0
-758	Pandas	cmudict	P AE N D AH Z	1.0
-759	Polars	split	P OW L ER Z	1.0
-760	ScikitLearn	split	S IH K IH T L ER N	1.0
-761	Librosa	split	L AY B R AA S AH	1.0
-762	SoundFile	split	S AW N D F AY L	1.0
-763	SoundDevice	split	S AW N D D IH V AY S	1.0
-764	Torchaudio	split	T AO R CH EY HH OW	1.0
-765	Transformers	cmudict	T R AE N S F AO R M ER Z	1.0
-766	Tokenizers	split	T AA K AH N AY Z ER Z	1.0
-767	Safetensors	split	S EY F T EH N SH ER Z	1.0
-768	Accelerate	cmudict	AE K S EH L ER EY T	1.0
-769	Datasets	cmudict	D EY T AH S EH T S	1.0
-770	Evaluate	cmudict	IH V AE L Y UW EY T	1.0
-770	Evaluate	cmudict	IY V AE L Y UW EY T	1.0
-771	SentencePiece	split	S EH N T AH N S P IY S	1.0
-772	Tiktoken	split	T IH K T AH K AH N	1.0
-773	NLTK	split	N EH L T K EY	1.0
-773	NLTK	acronym	EH N EH L T IY K EY	1.0
-774	SpaCy	split	S P AA S AY	1.0
-774	SpaCy	acronym	S P AA S IY W AY	1.0
-774	SpaCy	acronym	S P AA S IY HH W AY	1.0
-775	Gensim	split	G EH N S AH M	1.0
-776	G2pEn	split	JH IY T UW P IY EH N	1.0
-777	Espeak	split	EH S P IY K	1.0
-778	EspeakNG	split	EH S P IY K EH NG	1.0
-778	EspeakNG	split	EH S P IY K IH NG	1.0
-778	EspeakNG	acronym	EH S P IY K EH N JH IY	1.0
-779	Phonemizer	split	F OW N AH M AY Z ER	1.0
-780	Pip	cmudict	P IH P	1.0
-781	Pipx	split	P IH P K S	1.0
-782	Uv	cmudict	Y UW V IY	1.0
-783	Poetry	cmudict	P OW AH T R IY	1.0
-784	PDM	split	D EH M P IY	1.0
-784	PDM	acronym	P IY D IY EH M	1.0
-785	Hatch	cmudict	HH AE CH	1.0
-786	Setuptools	split	S EH T AH P AH T AH L Z	1.0
-787	Wheel	cmudict	W IY L	1.0
-787	Wheel	cmudict	HH W IY L	1.0
-788	Venv	split	V EH N V	1.0
-789	Virtualenv	split	V ER CH UW AH N L	1.0
-790	Conda	split	K AA N D AH	1.0
-791	Mamba	cmudict	M AA M B AH	1.0
-792	Micromamba	split	M AY K R OW M AE M B AH	1.0
-793	Pytest	split	P AY T EH S T	1.0
-794	Unittest	split	Y UW N IH T EH S T	1.0
-795	Pylance	split	P IH L AH N S	1.0
-796	Ruff	cmudict	R AH F	1.0
-797	Black	cmudict	B L AE K	1.0
-798	Mypy	split	M AY P IY	1.0
-798	Mypy	acronym	EH M W AY P IY W AY	1.0
-798	Mypy	acronym	EH M W AY P IY HH W AY	1.0
-798	Mypy	acronym	EH M HH W AY P IY W AY	1.0
-798	Mypy	acronym	EH M HH W AY P IY HH W AY	1.0
-799	Pyright	split	P AY R AH T	1.0
-800	TOML	split	T AA M AH L	1.0
-800	TOML	acronym	T IY OW EH M EH L	1.0
-801	YAML	split	Y AE M AH L	1.0
-801	YAML	acronym	W AY EY EH M EH L	1.0
-801	YAML	acronym	W AY AY EH M EH L	1.0
-801	YAML	acronym	HH W AY EY EH M EH L	1.0
-801	YAML	acronym	HH W AY AY EH M EH L	1.0
-802	JSON	split	S AA N	1.0
-802	JSON	acronym	JH EY EH S OW EH N	1.0
-803	JSONL	split	S AA N AH L	1.0
-803	JSONL	acronym	JH EY EH S OW EH N EH L	1.0
-804	CSV	cmudict	S IY EH S V IY	1.0
-805	TSV	split	T IY V EH N S EY	1.0
-805	TSV	acronym	T IY EH S V IY	1.0
-806	XML	cmudict	EH K S EH M EH L	1.0
-807	HTML	cmudict	EY CH T IY EH M EH L	1.0
-808	CSS	split	K S EH S	1.0
-808	CSS	acronym	S IY EH S EH S	1.0
-809	Markdown	cmudict	M AA R K D AW N	1.0
-810	QML	split	K M EH L	1.0
-810	QML	acronym	K Y UW EH M EH L	1.0
-811	JavaScript	cmudict	JH AA V AH S K R IH P T	1.0
-812	TypeScript	split	T AY P S K R IH P T	1.0
-813	JSX	split	JH K AH S	1.0
-813	JSX	acronym	JH EY EH S EH K S	1.0
-814	TSX	split	T S K EH N S	1.0
-814	TSX	acronym	T IY EH S EH K S	1.0
-815	SQL	cmudict	EH S K Y UW EH L	1.0
-815	SQL	cmudict	S IY K W UH L	1.0
-816	SQLite	split	S K IY L AY T	1.0
-816	SQLite	acronym	EH S K Y UW L AY T	1.0
-817	PostgreSQL	split	P AA S T G R EY EH S K Y UW EH L	1.0
-817	PostgreSQL	split	P AA S T G R EY S IY K W UH L	1.0
-818	MySQL	split	M AY EH S K Y UW EH L	1.0
-818	MySQL	split	M AY S IY K W UH L	1.0
-818	MySQL	acronym	EH M W AY EH S K Y UW EH L	1.0
-818	MySQL	acronym	EH M HH W AY EH S K Y UW EH L	1.0
-819	MariaDB	split	M ER IY AH D IY B IY	1.0
-820	Redis	split	R IY D IH S	1.0
-821	RocksDB	split	R AA K S D IY B IY	1.0
-822	LevelDB	split	L EH V AH L D IY B IY	1.0
-823	LMDB	split	D L EH D	1.0
-823	LMDB	acronym	EH L EH M D IY B IY	1.0
-824	MessagePack	split	M EH S AH JH P AE K	1.0
-824	MessagePack	split	M EH S IH JH P AE K	1.0
-825	CBOR	split	B AO R	1.0
-825	CBOR	acronym	S IY B IY OW AA R	1.0
-826	Protobuf	split	P R OW T AH B UW F	1.0
-827	FlatBuffers	split	F L AE T B AH F ER Z	1.0
-828	CapnProto	split	K AE P N P R OW T AH	1.0
-829	Avro	split	AE V R OW	1.0
-830	Parquet	cmudict	P AA R K EY	1.0
-831	Arrow	cmudict	AE R OW	1.0
-831	Arrow	cmudict	EH R OW	1.0
-832	Base64	split	B EY S S IH K S F AO R	1.0
-833	UTF8	split	AH T F EY T	1.0
-833	UTF8	acronym	Y UW T IY EH F EY T	1.0
-834	UTF16	split	AH T F W AH N S IH K S	1.0
-834	UTF16	acronym	Y UW T IY EH F W AH N S IH K S	1.0
-835	Unicode	split	Y UW N IH K OW D	1.0
-836	ASCII	cmudict	AE S K IY	1.0
-836	ASCII	acronym	EY EH S S IY AY AY	1.0
-836	ASCII	acronym	AY EH S S IY AY AY	1.0
-837	Latin1	split	L AE T AH N W AH N	1.0
-838	BigEndian	split	B IH G EH N D IY AH N	1.0
-839	LittleEndian	split	L IH T AH L EH N D IY AH N	1.0
-840	endianness	split	EH N D IY AH N S AH Z	1.0
-841	serialization	split	S EH R IY AH L AH Z EY SH AH N	1.0
-842	deserialization	split	D IY S ER IY AH L AH Z EY SH AH N	1.0
-843	schema	cmudict	S K IY M AH	1.0
-844	metadata	split	M EH T AH D EY T AH	1.0
-845	manifest	cmudict	M AE N AH F EH S T	1.0
-846	configuration	cmudict	K AH N F IH G Y ER EY SH AH N	1.0
-847	environment	cmudict	IH N V AY R AH N M AH N T	1.0
-848	delimiter	split	D EH L AH M AY T ER	1.0
-849	escaping	cmudict	IH S K EY P IH NG	1.0
-850	HTTP	cmudict	EY CH T IY T IY P IY	1.0
-851	HTTPS	split	T AE P T S	1.0
-851	HTTPS	acronym	EY CH T IY T IY P IY EH S	1.0
-852	HTTP2	split	EY CH T IY T IY P IY T UW	1.0
-853	HTTP3	split	EY CH T IY T IY P IY TH R IY	1.0
-854	TCP	split	T IY EH S	1.0
-854	TCP	acronym	T IY S IY P IY	1.0
-855	UDP	split	AH D P AH M	1.0
-855	UDP	acronym	Y UW D IY P IY	1.0
-856	QUIC	split	K W IH K	1.0
-856	QUIC	acronym	K Y UW Y UW AY S IY	1.0
-857	TLS	split	T EH L Z	1.0
-857	TLS	acronym	T IY EH L EH S	1.0
-858	SSL	split	S IY L	1.0
-858	SSL	acronym	EH S EH S EH L	1.0
-859	DNS	cmudict	D IY EH N EH S	1.0
-860	DNSSEC	split	D EH N S AH K	1.0
-861	DoH	cmudict	D OW	1.0
-861	DoH	split	D UW EY CH	1.0
-862	DoT	cmudict	D AA T	1.0
-862	DoT	split	D UW T IY	1.0
-863	URL	cmudict	Y UW AA R EH L	1.0
-863	URL	cmudict	UH R L	1.0
-864	URI	cmudict	Y ER IY	1.0
-864	URI	acronym	Y UW AA R AY	1.0
-865	URN	cmudict	ER N	1.0
-865	URN	acronym	Y UW AA R EH N	1.0
-866	REST	cmudict	R EH S T	1.0
-866	REST	acronym	AA R IY EH S T IY	1.0
-867	GraphQL	split	G R AE F K L IY	1.0
-867	GraphQL	acronym	G R AE F K Y UW EH L	1.0
-868	gRPC	split	JH IY P R EH K S	1.0
-868	gRPC	acronym	JH IY AA R P IY S IY	1.0
-869	WebSocket	split	W EH B S AA K AH T	1.0
-870	ServerSentEvents	split	S ER V ER S EH N T IH V EH N T S	1.0
-870	ServerSentEvents	split	S ER V ER S EH N T IY V EH N T S	1.0
-871	OAuth	split	OW AO TH	1.0
-872	OIDC	split	OY D	1.0
-872	OIDC	acronym	OW AY D IY S IY	1.0
-873	JWT	split	JH AH T	1.0
-873	JWT	acronym	JH EY D AH B AH L Y UW T IY	1.0
-874	Bearer	cmudict	B EH R ER	1.0
-875	CORS	split	K AO R Z	1.0
-875	CORS	acronym	S IY OW AA R EH S	1.0
-876	CSRF	split	K ER S F	1.0
-876	CSRF	acronym	S IY EH S AA R EH F	1.0
-877	XSS	split	K EH S K S	1.0
-877	XSS	acronym	EH K S EH S EH S	1.0
-878	SSRF	split	S K R F EH V	1.0
-878	SSRF	acronym	EH S EH S AA R EH F	1.0
-879	CDN	split	S IY D IY EH N	1.0
-880	Cloudflare	split	K L AW D F L AE F ER	1.0
-881	R2	split	AA R T UW	1.0
-882	S3	split	EH S TH R IY	1.0
-883	MinIO	split	M IH N AY OW	1.0
-884	Nginx	split	IH NG K	1.0
-885	Caddy	cmudict	K AE D IY	1.0
-886	Apache	cmudict	AH P AE CH IY	1.0
-887	Traefik	split	T R EH F IH K	1.0
-888	Envoy	cmudict	EH N V OY	1.0
-888	Envoy	cmudict	AA N V OY	1.0
-889	HAProxy	split	HH AA P R AA K S IY	1.0
-889	HAProxy	acronym	EY CH EY P R AA K S IY	1.0
-889	HAProxy	acronym	EY CH AY P R AA K S IY	1.0
-890	Curl	cmudict	K ER L	1.0
-891	Wget	split	G W IY T	1.0
-892	OpenSSL	split	OW P AH N S IY L	1.0
-892	OpenSSL	acronym	OW P AH N EH S EH S EH L	1.0
-893	LetsEncrypt	split	L EH T S EH N K R IH P T	1.0
-893	LetsEncrypt	split	L EH T S IH N K R IH P T	1.0
-894	Certbot	split	S ER T B AA T	1.0
-895	localhost	split	L OW K AH L HH OW S T	1.0
-896	hostname	split	HH AA S T N AH M	1.0
-897	port	cmudict	P AO R T	1.0
-898	endpoint	cmudict	EH N D P OY N T	1.0
-899	timeout	cmudict	T AY M AW T	1.0
-900	Mutex	split	M Y UW T EH K S	1.0
-901	RwLock	split	R AH L AA K	1.0
-901	RwLock	acronym	AA R D AH B AH L Y UW L AA K	1.0
-902	Condvar	split	K AA N D V ER	1.0
-903	AtomicBool	split	AH T AA M IH K B UW L	1.0
-904	AtomicUsize	split	AH T AA M IH K Y UW Z AH S	1.0
-905	AtomicU64	split	AH T AA M IH K Y UW S IH K S F AO R	1.0
-906	Ordering	cmudict	AO R D ER IH NG	1.0
-907	Acquire	cmudict	AH K W AY ER	1.0
-908	AtomicI64	split	AH T AA M IH K AY S IH K S F AO R	1.0
-909	AcqRel	split	AE K S R EH L	1.0
-910	SeqCst	split	S IY K K S EH T S	1.0
-910	SeqCst	acronym	S IY K S IY EH S T IY	1.0
-911	Relaxed	cmudict	R IH L AE K S T	1.0
-911	Relaxed	cmudict	R IY L AE K S T	1.0
-912	Send	cmudict	S EH N D	1.0
-913	Sync	cmudict	S IH NG K	1.0
-913	Sync	acronym	EH S W AY EH N S IY	1.0
-913	Sync	acronym	EH S HH W AY EH N S IY	1.0
-914	Unpin	split	AH N P IH N	1.0
-915	UnwindSafe	split	AH N W AY N D S EY F	1.0
-916	RefUnwindSafe	split	R EH F AH N W AY N D S EY F	1.0
-917	Future	cmudict	F Y UW CH ER	1.0
-918	Stream	cmudict	S T R IY M	1.0
-919	Iterator	split	AY T R AE T ER	1.0
-920	IntoIterator	split	IH N T UW AY T R AE T ER	1.0
-920	IntoIterator	split	IH N T AH AY T R AE T ER	1.0
-921	IntoFuture	split	IH N T UW F Y UW CH ER	1.0
-921	IntoFuture	split	IH N T AH F Y UW CH ER	1.0
-922	JoinHandle	split	JH OY N HH AE N D AH L	1.0
-923	JoinSet	split	JH OY N S EH T	1.0
-924	spawn	cmudict	S P AA N	1.0
-924	spawn	cmudict	S P AO N	1.0
-925	spawnBlocking	split	S P AA N B L AA K IH NG	1.0
-925	spawnBlocking	split	S P AO N B L AA K IH NG	1.0
-926	select	cmudict	S AH L EH K T	1.0
-927	oneshot	split	OW N IH SH AH T	1.0
-928	mpsc	split	P EH S K EY	1.0
-928	mpsc	acronym	EH M P IY EH S S IY	1.0
-929	broadcast	cmudict	B R AO D K AE S T	1.0
-930	watch	cmudict	W AA CH	1.0
-930	watch	cmudict	W AO CH	1.0
-931	channel	cmudict	CH AE N AH L	1.0
-932	backpressure	split	B AE K P R EH SH ER	1.0
-933	deadlock	cmudict	D EH D L AA K	1.0
-934	livelock	split	L AY V L AA K	1.0
-935	starvation	cmudict	S T AA R V EY SH AH N	1.0
-936	contention	cmudict	K AH N T EH N SH AH N	1.0
-937	raceCondition	split	R EY S K AH N D IH SH AH N	1.0
-938	thread	cmudict	TH R EH D	1.0
-939	task	cmudict	T AE S K	1.0
-940	coroutine	split	K AO R AH T AY N	1.0
-941	executor	cmudict	IH G Z EH K Y AH T ER	1.0
-942	scheduler	cmudict	S K EH JH UH L ER	1.0
-942	scheduler	cmudict	S K EH JH UW L ER	1.0
-943	poll	cmudict	P OW L	1.0
-944	waker	split	W EY K ER	1.0
-945	reactor	cmudict	R IY AE K T ER	1.0
-946	epoll	split	IH P AO L	1.0
-947	kqueue	split	K W IY OW	1.0
-948	ioUring	split	AY OW Y UH R IH NG	1.0
-949	eventfd	split	IH V EH N T F T	1.0
-950	testing	cmudict	T EH S T IH NG	1.0
-951	regression	cmudict	R AH G R EH SH AH N	1.0
-952	fixture	cmudict	F IH K S CH ER	1.0
-953	mock	cmudict	M AA K	1.0
-954	stub	cmudict	S T AH B	1.0
-955	assertion	cmudict	AH S ER SH AH N	1.0
-956	benchmark	cmudict	B EH N CH M AA R K	1.0
-957	Criterion	cmudict	K R AY T IH R IY AH N	1.0
-958	Divan	cmudict	D IH V AE N	1.0
-959	Nextest	split	N EH K S T AH S T	1.0
-960	Tarpaulin	split	T AA R P OW L IH N	1.0
-961	LlvmCov	split	L EH V M K OW V	1.0
-961	LlvmCov	acronym	EH L EH L V IY EH M K OW V	1.0
-962	coverage	cmudict	K AH V ER AH JH	1.0
-962	coverage	cmudict	K AH V ER IH JH	1.0
-962	coverage	cmudict	K AH V R IH JH	1.0
-963	fuzzing	split	F UH Z IH NG	1.0
-964	LibFuzzer	split	L IH B F UH Z ER	1.0
-965	AFL	cmudict	EY EH F EH L	1.0
-965	AFL	acronym	AY EH F EH L	1.0
-966	Honggfuzz	split	HH AA NG G AH F Z	1.0
-967	Proptest	split	P R AA P T AH S T	1.0
-968	QuickCheck	split	K W IH K CH EH K	1.0
-969	snapshot	cmudict	S N AE P SH AA T	1.0
-970	Insta	split	IH N S T AH	1.0
-971	golden	cmudict	G OW L D AH N	1.0
-972	deterministic	cmudict	D IH T ER M AH N IH S T IH K	1.0
-973	reproducible	split	R IY P R AH D UW S AH B AH L	1.0
-974	integration	cmudict	IH N T AH G R EY SH AH N	1.0
-974	integration	cmudict	IH N AH G R EY SH AH N	1.0
-975	smoke	cmudict	S M OW K	1.0
-976	validation	cmudict	V AE L AH D EY SH AH N	1.0
-977	diagnostic	cmudict	D AY AH G N AA S T IH K	1.0
-978	profiling	cmudict	P R OW F AY L IH NG	1.0
-979	flamegraph	split	F L EH M ER G AA P	1.0
-980	Perf	split	P ER F	1.0
-981	Valgrind	split	V AE L G R IH N D	1.0
-982	Callgrind	split	K AO L G R AH N D	1.0
-983	Cachegrind	split	K AE K IH G R IH N D AH D	1.0
-984	Heaptrack	split	HH EH P T R AE K	1.0
-985	DHAT	split	D AA T	1.0
-985	DHAT	acronym	D IY EY CH EY T IY	1.0
-985	DHAT	acronym	D IY EY CH AY T IY	1.0
-986	Miri	split	M IH R IY	1.0
-987	AddressSanitizer	split	AE D R EH S S AE N IH T AY Z ER	1.0
-987	AddressSanitizer	split	AH D R EH S S AE N IH T AY Z ER	1.0
-988	ThreadSanitizer	split	TH R EH D S AE N IH T AY Z ER	1.0
-989	UndefinedBehaviorSanitizer	split	AH N D IH F AY N D B IH HH EY V Y ER S AE N IH T AY Z ER	1.0
-990	LeakSanitizer	split	L IY K S AE N IH T AY Z ER	1.0
-991	debugger	split	D EH B Y UW G ER	1.0
-992	GDB	split	D G EH B	1.0
-992	GDB	acronym	JH IY D IY B IY	1.0
-993	LLDB	split	L EH B D	1.0
-993	LLDB	acronym	EH L EH L D IY B IY	1.0
-994	coreDump	split	K AO R D AH M P	1.0
-995	backtrace	split	B AE K T R EY S	1.0
-996	SIGILL	split	S IH JH AH L	1.0
-997	SIGTERM	split	S IH G T ER M	1.0
-998	SIGINT	split	S AY JH AH N T	1.0
-999	SIGUSR1	split	S AY G ER S W AH N	1.0
+1	Nemotron	split	N EH M AH T ER N	1.0
+2	Cohere	cmudict	K OW HH IH R	1.0
+3	SenseVoice	split	S EH N S V OY S	1.0
+4	Paraformer	split	P EH R AH F AO R M ER	1.0
+5	Omnilingual	split	AA M N IH L Y AH G AH L	1.0
+6	Soniox	split	S AA N IY OW S	1.0
+7	Vosk	split	V AO S K	1.0
+8	Kaldi	split	K AA L D IY	1.0
+9	DeepSpeech	split	D IY P S P IY CH	1.0
+10	SpeechBrain	split	S P IY CH B R EY N	1.0
+11	NeMo	cmudict	N EH M OW	1.0
+11	NeMo	split	N IY M OW	1.0
+11	NeMo	split	N EY M OW	1.0
+12	Wav2Vec	split	W AA V T UW V EH K	1.0
+13	HuBERT	cmudict	HH Y UW B ER T	1.0
+13	HuBERT	split	HH UW B ER T	1.0
+13	HuBERT	acronym	HH UW B IY IY AA R T IY	1.0
+14	Conformer	split	K AH N F AO R M ER	1.0
+15	Zipformer	split	Z IH P F ER M ER	1.0
+16	FastConformer	split	F AE S T K AH N F AO R M ER	1.0
+17	WeNet	split	W IY N EH T	1.0
+18	FunASR	split	F AH N AA S ER	1.0
+18	FunASR	acronym	F AH N EY EH S AA R	1.0
+18	FunASR	acronym	F AH N AY EH S AA R	1.0
+19	Silero	split	S IH L EH R OW	1.0
+20	Pyannote	split	P Y AA N AH T OW	1.0
+21	ElevenLabs	split	IH L EH V AH N L AE B Z	1.0
+21	ElevenLabs	split	IY L EH V AH N L AE B Z	1.0
+22	OpenAI	split	OW P AH N AY	1.0
+22	OpenAI	split	OW P AH N EY AY	1.0
+22	OpenAI	acronym	OW P AH N AY AY	1.0
+23	HuggingFace	split	HH AH G IH NG F EY S	1.0
+24	Ollama	split	OW L AA M AH	1.0
+25	Qwen	split	K W EH N	1.0
+26	Gemma	cmudict	JH EH M AH	1.0
+27	GPT	split	G EH T S	1.0
+27	GPT	acronym	JH IY P IY T IY	1.0
+28	BERT	cmudict	B ER T	1.0
+28	BERT	acronym	B IY IY AA R T IY	1.0
+29	RoBERTa	cmudict	R AH B ER T AH	1.0
+29	RoBERTa	split	R OW B EH R T AA	1.0
+29	RoBERTa	acronym	R OW B IY IY AA R T AA	1.0
+30	DistilBERT	split	D IH S T IH L B ER T	1.0
+30	DistilBERT	acronym	D IH S T IH L B IY IY AA R T IY	1.0
+31	T5	split	T IY F AY V	1.0
+32	BART	cmudict	B AA R T	1.0
+32	BART	acronym	B IY EY AA R T IY	1.0
+32	BART	acronym	B IY AY AA R T IY	1.0
+33	XLNet	split	K EH L S N EH T	1.0
+33	XLNet	acronym	EH K S EH L N EH T	1.0
+34	ALBERT	cmudict	AE L B ER T	1.0
+35	DeBERTa	split	D IY B EH R T AA	1.0
+35	DeBERTa	split	D EY B EH R T AA	1.0
+35	DeBERTa	split	D AH B EH R T AA	1.0
+35	DeBERTa	acronym	D IY B IY IY AA R T AA	1.0
+35	DeBERTa	acronym	D EY B IY IY AA R T AA	1.0
+35	DeBERTa	acronym	D AH B IY IY AA R T AA	1.0
+36	DeepSeek	split	D IY P S IY K	1.0
+37	ARPAbet	split	AA R P AH B EH T	1.0
+37	ARPAbet	acronym	EY AA R P IY AH B EH T	1.0
+37	ARPAbet	acronym	AY AA R P IY AH B EH T	1.0
+38	CMUdict	cmudict	S IY EH M Y UW D IH K T	1.0
+38	CMUdict	split	K EH M AH D IH K T	1.0
+38	CMUdict	acronym	S IY EH M AH D IH K T	1.0
+39	G2P	split	JH IY T UW P IY	1.0
+40	rustc	split	R AH S T	1.0
+41	rustup	split	R AH S T AH P	1.0
+42	rustfmt	split	R AH S T F T M	1.0
+43	Clippy	split	K L IH P IY	1.0
+44	Tokio	cmudict	T OW K IY OW	1.0
+45	Serde	split	S ER D	1.0
+46	Thiserror	split	TH IH S ER ER	1.0
+47	Reqwest	split	R EH K W EH S T	1.0
+48	Rayon	cmudict	R EY AH N	1.0
+49	Crossbeam	split	K R AA S B IY AH M	1.0
+50	DashMap	split	D AE SH M AE P	1.0
+51	IndexMap	split	IH N D EH K S M AE P	1.0
+52	SmallVec	split	S M AO L V EH K	1.0
+53	ArrayVec	split	ER EY V EH K	1.0
+54	Bitflags	split	B IH T F L AE G Z	1.0
+55	OnceCell	split	W AH N S S EH L	1.0
+56	LazyLock	split	L EY Z IY L AA K	1.0
+57	Rustls	split	R AH S AH L Z	1.0
+58	Webpki	split	W EH B P K IY	1.0
+59	Ratatui	split	R AA T OW T UW SH IY	1.0
+60	Crossterm	split	K R AA S T ER M	1.0
+61	Bytemuck	split	B AY T AH M K	1.0
+62	Libc	split	L IH B IH K	1.0
+63	Evdev	split	EH V D EH S	1.0
+64	Cpal	split	K AE L	1.0
+65	Linux	cmudict	L IH N AH K S	1.0
+66	Wayland	cmudict	W EY L AH N D	1.0
+67	XWayland	split	EH K S W EY L AH N D	1.0
+68	Xorg	split	Z AO R G	1.0
+69	GNOME	cmudict	N OW M	1.0
+69	GNOME	acronym	JH IY EH N OW EH M IY	1.0
+70	KDE	split	K D IY	1.0
+70	KDE	acronym	K EY D IY IY	1.0
+71	Hyprland	split	HH AY P R L AH N D	1.0
+72	Wayfire	split	W EY F AY ER	1.0
+73	Niri	split	N IH R IY	1.0
+74	Labwc	split	L AE B V	1.0
+75	KWin	split	K EY W IH N	1.0
+76	Wlroots	split	L UH R UW T S	1.0
+77	Waybar	split	W EY B ER	1.0
+78	Quickshell	split	K W IH K SH AH L	1.0
+79	Omarchy	split	OW M AA R K IY	1.0
+80	Manjaro	split	M AA N JH AA R OW	1.0
+81	Ubuntu	cmudict	UW B UW T UW	1.0
+82	Debian	cmudict	D EH B IY AH N	1.0
+83	Fedora	cmudict	F IH D AO R AH	1.0
+84	NixOS	split	N IH K S AA S	1.0
+84	NixOS	acronym	N IH K S OW EH S	1.0
+85	EndeavourOS	split	IH N D EH V ER AA S	1.0
+85	EndeavourOS	acronym	IH N D EH V ER OW EH S	1.0
+86	CachyOS	split	K AE CH IY AA S	1.0
+86	CachyOS	acronym	K AE CH IY OW EH S	1.0
+87	RHEL	split	R EH L	1.0
+87	RHEL	acronym	AA R EY CH IY EH L	1.0
+88	macOS	split	M AE K AA S	1.0
+88	macOS	acronym	M AE K OW EH S	1.0
+89	Asahi	cmudict	AH S AA HH IY	1.0
+90	PipeWire	split	P AY P W AY ER	1.0
+90	PipeWire	split	P AY P W AY R	1.0
+91	PulseAudio	split	P AH L S AA D IY OW	1.0
+92	ALSA	split	AE L S AH	1.0
+92	ALSA	acronym	EY EH L EH S EY	1.0
+92	ALSA	acronym	EY EH L EH S AY	1.0
+92	ALSA	acronym	AY EH L EH S EY	1.0
+92	ALSA	acronym	AY EH L EH S AY	1.0
+93	JACK	cmudict	JH AE K	1.0
+93	JACK	acronym	JH EY EY S IY K EY	1.0
+93	JACK	acronym	JH EY AY S IY K EY	1.0
+94	WirePlumber	split	W AY ER P L AH M ER	1.0
+94	WirePlumber	split	W AY R P L AH M ER	1.0
+95	PortAudio	split	P AO R T AA D IY OW	1.0
+96	CoreAudio	split	K AO R AA D IY OW	1.0
+97	AudioUnit	split	AA D IY OW Y UW N AH T	1.0
+97	AudioUnit	split	AA D IY OW Y UW N IH T	1.0
+98	GStreamer	split	JH IY S T R IY M ER	1.0
+99	FFmpeg	split	EH F P EH M P T	1.0
+100	SoX	cmudict	S AA K S	1.0
+100	SoX	split	S OW EH K S	1.0
+101	PCM	split	K EH M P IY	1.0
+101	PCM	acronym	P IY S IY EH M	1.0
+102	WAV	split	W AA V	1.0
+102	WAV	acronym	D AH B AH L Y UW EY V IY	1.0
+102	WAV	acronym	D AH B AH L Y UW AY V IY	1.0
+103	FLAC	split	F L AE K	1.0
+103	FLAC	acronym	EH F EH L EY S IY	1.0
+103	FLAC	acronym	EH F EH L AY S IY	1.0
+104	MP3	split	P EY M TH R IY	1.0
+104	MP3	acronym	EH M P IY TH R IY	1.0
+105	CUDA	split	K Y UW D AH	1.0
+105	CUDA	acronym	S IY Y UW D IY EY	1.0
+105	CUDA	acronym	S IY Y UW D IY AY	1.0
+106	Vulkan	split	V AH L K AH N	1.0
+107	ROCm	split	R OW K EH M	1.0
+107	ROCm	acronym	AA R OW S IY EH M	1.0
+108	HIP	cmudict	HH IH P	1.0
+108	HIP	acronym	EY CH AY P IY	1.0
+109	HIPBLAS	split	HH IH P B L AH S	1.0
+110	OpenCL	split	OW P AH N K EH L	1.0
+110	OpenCL	acronym	OW P AH N S IY EH L	1.0
+111	SYCL	split	S IH K AH L	1.0
+111	SYCL	acronym	EH S W AY S IY EH L	1.0
+111	SYCL	acronym	EH S HH W AY S IY EH L	1.0
+112	TensorRT	split	T EH N S ER R EH T S	1.0
+112	TensorRT	acronym	T EH N S ER AA R T IY	1.0
+113	ONNX	split	AA N K S	1.0
+113	ONNX	acronym	OW EH N EH N EH K S	1.0
+114	GGML	split	G EH M P AH L	1.0
+114	GGML	acronym	JH IY JH IY EH M EH L	1.0
+115	GGUF	split	G AH F	1.0
+115	GGUF	acronym	JH IY JH IY Y UW EH F	1.0
+116	MIGraphX	split	M IY G R AE F EH K S	1.0
+116	MIGraphX	acronym	EH M AY G R AE F EH K S	1.0
+117	cuDNN	split	K UW D IY EH N EH N	1.0
+118	cuBLAS	split	K UW B L AA S	1.0
+118	cuBLAS	acronym	K UW B IY EH L EY EH S	1.0
+118	cuBLAS	acronym	K UW B IY EH L AY EH S	1.0
+119	cuFFT	split	K UW F EH T S	1.0
+119	cuFFT	acronym	K UW EH F EH F T IY	1.0
+120	cuSPARSE	split	K UW S P AA R S	1.0
+121	NCCL	split	K EH N B AH L	1.0
+121	NCCL	acronym	EH N S IY S IY EH L	1.0
+122	NVRTC	split	EH N V ER K T	1.0
+122	NVRTC	acronym	EH N V IY AA R T IY S IY	1.0
+123	NVML	split	N AH M AH L	1.0
+123	NVML	acronym	EH N V IY EH M EH L	1.0
+124	PTX	split	T IY EH K S	1.0
+124	PTX	acronym	P IY T IY EH K S	1.0
+125	SPIRV	split	S P ER V	1.0
+125	SPIRV	acronym	EH S P IY AY AA R V IY	1.0
+126	VRAM	split	V R AE M	1.0
+126	VRAM	acronym	V IY AA R EY EH M	1.0
+126	VRAM	acronym	V IY AA R AY EH M	1.0
+127	SIMD	split	S IH M D	1.0
+127	SIMD	acronym	EH S AY EH M D IY	1.0
+128	FMA	split	F AA M	1.0
+128	FMA	acronym	EH F EH M EY	1.0
+128	FMA	acronym	EH F EH M AY	1.0
+129	GFNI	split	G AH N F IY	1.0
+129	GFNI	acronym	JH IY EH F EH N AY	1.0
+130	NVIDIA	cmudict	EH N V IH D IY AH	1.0
+131	AMD	cmudict	EY EH M D IY	1.0
+131	AMD	acronym	AY EH M D IY	1.0
+132	Intel	cmudict	IH N T EH L	1.0
+133	RDNA	split	R IH N D AH	1.0
+133	RDNA	acronym	AA R D IY EH N EY	1.0
+133	RDNA	acronym	AA R D IY EH N AY	1.0
+134	CDNA	split	S IY D IY N EY	1.0
+134	CDNA	acronym	S IY D IY EH N EY	1.0
+134	CDNA	acronym	S IY D IY EH N AY	1.0
+135	Radeon	split	R EY D IY AH N	1.0
+136	GeForce	split	JH IY F AO R S	1.0
+137	Xeon	split	Z IY AH N	1.0
+138	Ryzen	split	R AY Z AH N	1.0
+139	Threadripper	split	TH R EH D R IH P	1.0
+140	EPYC	split	EH P IH K	1.0
+140	EPYC	acronym	IY P IY W AY S IY	1.0
+140	EPYC	acronym	IY P IY HH W AY S IY	1.0
+141	AVX2	split	AE V K S T UW	1.0
+141	AVX2	acronym	EY V IY EH K S T UW	1.0
+141	AVX2	acronym	AY V IY EH K S T UW	1.0
+142	AVX512	split	AE V K S F AY V W AH N T UW	1.0
+142	AVX512	acronym	EY V IY EH K S F AY V W AH N T UW	1.0
+142	AVX512	acronym	AY V IY EH K S F AY V W AH N T UW	1.0
+143	SSSE3	split	S IY S TH R IY	1.0
+143	SSSE3	acronym	EH S EH S EH S IY TH R IY	1.0
+144	BMI2	split	B IY M IY T UW	1.0
+144	BMI2	acronym	B IY EH M AY T UW	1.0
+145	ReLU	split	R EY L UW	1.0
+145	ReLU	split	R IY L UW	1.0
+145	ReLU	acronym	R EY EH L Y UW	1.0
+145	ReLU	acronym	R IY EH L Y UW	1.0
+146	GELU	split	JH EH L UW	1.0
+146	GELU	acronym	JH IY IY EH L Y UW	1.0
+147	SiLU	split	S IY L UW	1.0
+147	SiLU	acronym	S IY EH L Y UW	1.0
+148	RMSNorm	split	R AH M Z N AO R M	1.0
+148	RMSNorm	acronym	AA R EH M EH S N AO R M	1.0
+149	LayerNorm	split	L EY ER N AO R M	1.0
+150	CTC	split	K EH CH	1.0
+150	CTC	acronym	S IY T IY S IY	1.0
+151	RNNT	split	EH N T R IY	1.0
+151	RNNT	acronym	AA R EH N EH N T IY	1.0
+152	ASR	split	AA S ER	1.0
+152	ASR	acronym	EY EH S AA R	1.0
+152	ASR	acronym	AY EH S AA R	1.0
+153	TTS	split	T IY EH N IY S	1.0
+153	TTS	acronym	T IY T IY EH S	1.0
+154	VAD	split	V AE D	1.0
+154	VAD	acronym	V IY EY D IY	1.0
+154	VAD	acronym	V IY AY D IY	1.0
+155	MFCC	split	F EY CH	1.0
+155	MFCC	acronym	EH M EH F S IY S IY	1.0
+156	FFT	split	F EH T S	1.0
+156	FFT	acronym	EH F EH F T IY	1.0
+157	STFT	split	S T EH F T AH N T	1.0
+157	STFT	acronym	EH S T IY EH F T IY	1.0
+158	WER	split	W EH R	1.0
+158	WER	acronym	D AH B AH L Y UW IY AA R	1.0
+159	CER	split	S EH R	1.0
+159	CER	acronym	S IY IY AA R	1.0
+160	wtype	user	D AH B AH L Y UW T AY P	1.0
+160	wtype	split	T W AY P	1.0
+161	dotool	user	D UW T UW L	1.0
+161	dotool	user	D OW T UW L	1.0
+161	dotool	split	D OW T AO L	1.0
+162	ydotool	user	W AY D UW T UW L	1.0
+162	ydotool	user	HH W AY D UW T UW L	1.0
+162	ydotool	user	W AY D OW T UW L	1.0
+162	ydotool	user	HH W AY D OW T UW L	1.0
+162	ydotool	split	Y IH D OW T AH L	1.0
+163	ydotoold	user	W AY D UW T UW L D IY	1.0
+163	ydotoold	user	HH W AY D UW T UW L D IY	1.0
+163	ydotoold	user	W AY D OW T UW L D IY	1.0
+163	ydotoold	user	HH W AY D OW T UW L D IY	1.0
+163	ydotoold	split	IH D UW T OW L D	1.0
+164	xdotool	split	Z D AA K W AH L	1.0
+165	kdotool	split	K D AA T UW L	1.0
+166	eitype	user	AY T AY P	1.0
+166	eitype	user	IY AY T AY P	1.0
+167	wl-copy	user	D AH B AH L Y UW EH L K AA P IY	1.0
+167	wl-copy	user	D AH B AH L Y UW EH L D AE SH K AA P IY	1.0
+167	wl-copy	split	W IH L D AE SH K AA P IY	1.0
+167	wl-copy	split	W IH L K AA P IY	1.0
+168	wl-paste	split	W IH L D AE SH P EY S T	1.0
+168	wl-paste	split	W IH L P EY S T	1.0
+168	wl-paste	acronym	D AH B AH L Y UW EH L P EY S T	1.0
+169	xclip	split	K S IH L K P	1.0
+170	xsel	split	Z EH L	1.0
+171	uinput	split	Y UW P AH N T	1.0
+172	libinput	split	L IH B IH P AH N T	1.0
+173	libei	split	L AY B IY	1.0
+174	libeis	split	L AY B AY Z	1.0
+175	xkbcommon	split	B K AA S K AH M AO N	1.0
+176	DBus	split	D IY B AH S	1.0
+177	XDG	split	D IH G Z	1.0
+177	XDG	acronym	EH K S D IY JH IY	1.0
+178	EIS	cmudict	AY Z	1.0
+178	EIS	acronym	IY AY EH S	1.0
+179	XTest	split	EH K S T EH S T	1.0
+180	systemd	split	S IH S T AH M D	1.0
+181	systemctl	split	S IH S T EH M P T AH L	1.0
+182	journalctl	split	JH ER N AH K L AH T	1.0
+183	udev	split	Y UW D EH V	1.0
+184	udevadm	split	Y UW D EY V IH D	1.0
+185	polkit	split	P OW L K IH T	1.0
+186	logind	split	L AA JH IH N D	1.0
+187	dbus-daemon	split	D B UW Z D AE SH D IY M AH N	1.0
+187	dbus-daemon	split	D B UW Z D AE SH D EY M AH N	1.0
+187	dbus-daemon	split	D B UW Z D IY M AH N	1.0
+187	dbus-daemon	split	D B UW Z D EY M AH N	1.0
+188	dbus-broker	split	D B UW Z D AE SH B R OW K ER	1.0
+188	dbus-broker	split	D B UW Z B R OW K ER	1.0
+189	GPG	split	G EH P T IY	1.0
+189	GPG	acronym	JH IY P IY JH IY	1.0
+190	Docker	cmudict	D AA K ER	1.0
+191	AUR	split	AO R	1.0
+191	AUR	acronym	EY Y UW AA R	1.0
+191	AUR	acronym	AY Y UW AA R	1.0
+192	PKGBUILD	split	K AH B G W IH L D	1.0
+193	makepkg	split	M AE K IH P G	1.0
+194	CMake	split	S IY M EY K	1.0
+195	GCC	split	G EH K S IY	1.0
+195	GCC	acronym	JH IY S IY S IY	1.0
+196	LLVM	split	L EH V M	1.0
+196	LLVM	acronym	EH L EH L V IY EH M	1.0
+197	glibc	split	G L IH B	1.0
+198	SIGILL	split	S IH JH AH L	1.0
+199	SIGUSR1	split	S AY G ER S W AH N	1.0

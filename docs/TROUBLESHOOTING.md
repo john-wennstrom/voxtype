@@ -27,6 +27,45 @@ Solutions to common issues when using Voxtype.
 
 ## Phonetic Lexicons (Fork)
 
+### voxtype init Fails During Setup
+
+Install Python 3 with `venv` and `pip` support (on Debian/Ubuntu,
+`sudo apt install python3-venv`), or specify `voxtype init --python /path/to/python3`.
+First-time setup needs internet access for Python dependencies and NLTK data.
+For NLTK permission errors, set `VOXTYPE_NLTK_DATA` to a private directory
+whose ancestors are not group- or world-writable. Fix the reported problem and
+rerun `voxtype init`; your `.voxtype/words.txt` is preserved. The `espeak` and
+`all` backends additionally need `espeak-ng` installed.
+
+If `init` is an unknown command, the binary on PATH predates this feature.
+From this checkout run `just install-cli`, then check `command -v voxtype`.
+For a project initialized with `init`, edit `words.txt` rather than the generated
+`terms.tsv`, and rerun `voxtype init` after changes.
+
+### Local GGUF Selection Is Unavailable
+
+Build `voxtype-lexicon-local` with `--features lexicon-local`, install it beside
+voxtype or on PATH, or set `lexicon.local.helper`. Use an instruction-tuned
+GGUF with a supported chat template. Increase `lexicon.local.timeout_ms`
+(maximum 10000) if CPU inference exceeds the default 1000 ms. Model loading
+runs in the background; early requests may time out. Failures retain phonetic
+corrections and do not block transcription indefinitely.
+
+### Automatic Project Selection Does Not Find My Project
+
+Enable `lexicon.auto_project`, clear persisted `lexicon use` selection, and
+remove explicit `lexicon.project`. Detection supports Hyprland, Sway, and X11.
+GNOME/KDE Wayland and ambiguous multi-project terminals require explicit
+selection. Projects need `.voxtype/terms.tsv` and built indexes for project
+terms; unavailable indexes still apply suppressions and privacy settings.
+
+### Learning Reports An Unknown Query Word
+
+Add a reviewed ARPAbet pronunciation for that recognized word to the exported
+query dictionary and rebuild with the same correction pairs. Do not label
+uncertain synthetic alignments as corrections. `lexicon synthesize` requires
+`espeak-ng` (or `espeak`) and a fresh output directory.
+
 ### Cannot load lexicon, stale hash, or checksum mismatch
 
 Rebuild using `tools/lexicon_g2p.py` and `voxtype lexicon build`. For a project,
@@ -39,8 +78,11 @@ the feature temporarily with `--no-lexicon`.
 
 Use `voxtype lexicon query "<ARPAbet phones>"` to inspect retrieval. Add the
 actual spoken form in the second tab-separated source column and rebuild.
-Only uncertain words are corrected; missing decoder confidence is not treated
-as zero. Common words such as `get` require another domain cue or a recent
+Phonetic lookup targets uncertain or unknown words; missing decoder confidence is
+not treated as zero. Set `lexicon.capitalized_confidence_threshold = 0.95` for
+capitalized words, but note that spelling-derived pronunciation can still be
+wrong. In review mode, save a selected-span correction with `lexicon.terms` set
+to learn an explicit alias. Common words such as `get` require another domain cue or a recent
 accepted correction before becoming jargon. `commit = "off"` deliberately
 disables streaming corrections. No decoder boosting is implemented yet.
 
@@ -63,10 +105,22 @@ easier to diagnose.
 
 ## Transcript Review (Fork)
 
+### A correction cannot be saved
+
+Corrections are supported only in review mode after finalization. Set
+`lexicon.enabled = true` and `lexicon.terms` to the writable source TSV, not the
+compiled `.vxl` index. Select one to three complete words and enter a nonempty
+canonical term without tabs, newlines, or `|`. Suppressed terms and conflicting
+spoken aliases must be resolved in the source file before saving. Check the
+daemon log for file errors; failed saves retain the pending transcript.
+
 ### Dictation stays in the popup instead of being inserted
 
 With `[transcript_popup] review_mode = true`, release finalizes a draft rather
-than inserting it. Select the destination application and click **Deliver**.
+than inserting it. On GNOME/XWayland, click **Deliver** to finish editing,
+select the destination application, then click **Send**. The confirmation does
+not take keyboard focus. **Edit** returns to corrections without sending text.
+On layer-shell compositors, select the destination and click **Deliver** directly.
 Click **Discard** to clear the draft without output. New recordings are blocked
 until that decision, and the popup remains open afterward.
 

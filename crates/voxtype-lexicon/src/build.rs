@@ -14,6 +14,15 @@ pub struct Entry {
 }
 
 pub fn from_tsv(variants: &Path, dictionary: &Path, output: &Path) -> Result<()> {
+    from_tsv_with_corrections(variants, dictionary, output, None)
+}
+
+pub fn from_tsv_with_corrections(
+    variants: &Path,
+    dictionary: &Path,
+    output: &Path,
+    corrections: Option<&Path>,
+) -> Result<()> {
     let mut entries = Vec::new();
     for (line_number, line) in BufReader::new(File::open(variants)?).lines().enumerate() {
         let line = line?;
@@ -56,15 +65,31 @@ pub fn from_tsv(variants: &Path, dictionary: &Path, output: &Path) -> Result<()>
             .context("Expected word TAB phonemes")?;
         words.insert(word.to_lowercase(), alphabet::parse(phones)?);
     }
-    write(entries, words, output, 0)
+    let costs = corrections
+        .map(|path| crate::learn::learn(&mut entries, &words, &std::fs::read_to_string(path)?))
+        .transpose()?;
+    write_with_costs(entries, words, output, 0, costs.as_ref())
 }
 
 pub fn write(
-    mut entries: Vec<Entry>,
+    entries: Vec<Entry>,
     dictionary: BTreeMap<String, Vec<u8>>,
     output: &Path,
     tokenizer_hash: u64,
 ) -> Result<()> {
+    write_with_costs(entries, dictionary, output, tokenizer_hash, None)
+}
+
+pub fn write_with_costs(
+    mut entries: Vec<Entry>,
+    dictionary: BTreeMap<String, Vec<u8>>,
+    output: &Path,
+    tokenizer_hash: u64,
+    costs: Option<&alphabet::Costs>,
+) -> Result<()> {
+    if let Some(costs) = costs {
+        alphabet::validate_costs(costs)?;
+    }
     if !cfg!(target_endian = "little") {
         bail!("Lexicon indexes require a little-endian host");
     }
@@ -192,7 +217,7 @@ pub fn write(
         version: 1,
         variants: variants.len() as u32,
         terms: terms.len() as u32,
-        reserved: 0,
+        reserved: u32::from(costs.is_some()),
         alphabet: alphabet::hash(),
         tokenizer: tokenizer_hash,
         sections: [Section::zeroed(); SECTIONS],
@@ -208,6 +233,11 @@ pub fn write(
             checksum: xxhash_rust::xxh3::xxh3_64(section),
         };
         file.write_all(section)?;
+    }
+    if let Some(costs) = costs {
+        let bytes: &[u8] = bytemuck::cast_slice(costs);
+        file.write_all(bytes)?;
+        file.write_all(&xxhash_rust::xxh3::xxh3_64(bytes).to_le_bytes())?;
     }
     file.seek(SeekFrom::Start(0))?;
     file.write_all(bytemuck::bytes_of(&header))?;

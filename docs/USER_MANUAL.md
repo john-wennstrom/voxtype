@@ -74,10 +74,69 @@ Unchanged words are not underlined. Lexicon replacements do not show a model
 confidence score, since Nemotron scored the original words, not the replacement.
 In `eou` mode, phonetic picks appear in the preview while recording; final
 correction and optional Jev selection still happen on release. Terminal logs
-report word confidence percentages, lexicon lookups, and selected replacements.
+show confidence percentages for only the latest three buffer words while recording,
+then the complete corrected message once after release. Lexicon replacements are
+orange in interactive terminals. Redirected logs and `NO_COLOR` output stay plain;
+`-v` enables detailed lookup diagnostics.
 
-Project lexicons use `<project>/.voxtype/terms.tsv`. Generate its pronunciation
-TSV the same way, then build and select it:
+### Initialize A Project
+
+For this source checkout, run `just install-cli` once to build the CLI and link
+its Nemotron launcher into `~/.local/bin`. That directory must be on PATH.
+Running `voxtype` uses the same Nemotron model, configuration, and Super+V hotkey
+as `just`, even outside the checkout. It uses `config/nemotron.toml`, not your
+default user configuration. Override it with `VOXTYPE_NEMOTRON_CONFIG` if needed.
+Normal `voxtype` runs show the transcript preview without review. Run
+`voxtype review` to enable editable review for that daemon session; `just review`
+uses the same launcher mode.
+This local installation references the checkout and its native runtime; keep both in place.
+An installed binary containing this command does not need the source checkout
+or `just` to initialize projects.
+
+From any project directory:
+
+```bash
+cd /path/to/my-project
+voxtype init
+# Edit .voxtype/words.txt with your project's words, then rebuild:
+voxtype init
+```
+
+The first run creates `.voxtype/words.txt` with a small dummy vocabulary,
+installs the generator dependencies in a shared user-cache Python environment,
+downloads the required NLTK resources, generates pronunciation TSVs, compiles
+the project index, and selects the project for subsequent utterances. If the
+configured user index is missing, it creates an empty one with a query dictionary;
+existing user vocabulary is never replaced. Python 3
+with `venv` and `pip` support and internet access are needed on first use.
+Python is used only during generation, not dictation. Later runs reuse the
+environment and downloaded data and never overwrite your word list.
+
+Use one word or phrase per line. Optional spoken forms and weights use the same
+tab-separated format as `terms.tsv`. Existing `.voxtype/terms.tsv` is imported
+when `words.txt` does not exist. Once initialized, edit `words.txt`: `terms.tsv`
+is a generated compatibility file, as are `terms.phon.tsv` and `querydict.phon.tsv`.
+The compiled index stays in the user cache rather than the project directory.
+
+`voxtype init /path/to/project` initializes an explicit directory.
+`--backend g2p_en|espeak|all|none` selects the pronunciation backend;
+`--python /path/to/python3` selects Python for environment creation.
+The corresponding environment variables are `VOXTYPE_INIT_PROJECT`,
+`VOXTYPE_INIT_BACKEND`, and `VOXTYPE_INIT_PYTHON`. Tooling lives under
+`$XDG_CACHE_HOME/voxtype/lexicon-tools` (normally `~/.cache/voxtype/lexicon-tools`).
+NLTK data uses a separate private `$XDG_CACHE_HOME/voxtype-nltk-data` directory
+(normally `~/.cache/voxtype-nltk-data`). Set `VOXTYPE_NLTK_DATA` to override it;
+the directory and its ancestors must not be group- or world-writable.
+
+Initialization does not modify your daemon configuration. Enable corrections
+once with `voxtype config set lexicon.enabled true`, then restart a running
+daemon. An explicit `lexicon.project` setting overrides the project selected
+by `init`. Use `voxtype lexicon use --clear` to return to your user lexicon.
+
+### Manual Project Generation
+
+Project lexicons use `<project>/.voxtype/terms.tsv`. You can also generate its
+pronunciation TSV manually, then build and select it:
 
 From this checkout, generate project TSVs with:
 
@@ -111,8 +170,9 @@ Project spelling and weight override matching user entries; pronunciations
 from both remain searchable. A line `!term` suppresses that user term. A
 configured `lexicon.project` takes precedence over `lexicon use`. Project
 switches and rebuilt indexes take effect between utterances, not while words
-are being committed. Automatic focused-window project detection is not yet
-implemented.
+are being committed. Set `lexicon.auto_project = true` to detect projects on
+Hyprland, Sway, or X11. Explicit selection wins. Unsupported sessions,
+including GNOME/KDE Wayland, and ambiguous terminals use the user lexicon.
 
 Inspect retrieval without a model:
 
@@ -132,10 +192,54 @@ prevent remote selection there:
 enabled = false
 ```
 
+For local ambiguous-span selection, build and install the helper:
+
+```bash
+cargo build --features lexicon-local --bin voxtype-lexicon-local
+```
+
+Set `[lexicon.local] enabled = true` and `model = "/path/to/instruct.gguf"`.
+Place the helper beside voxtype or set `lexicon.local.helper`. The model stays
+resident; per-request grammar permits only retrieved terms or keeping the
+original. It runs when Jev is disabled, blocked, or unavailable. Failures keep
+the phonetic decision. The default deadline is 1000 ms; loading happens in the
+background, so early requests may time out.
+
+### Learning From Reviewed Errors
+
+Generate carrier-sentence audio with several voices/speeds (`espeak-ng`
+required), then evaluate with the configured transcription engine. Evaluation
+disables the lexicon so corrections cannot become their own training labels.
+
+```bash
+voxtype lexicon synthesize ~/.config/voxtype/lexicon/terms.tsv \
+  --output /tmp/lexicon-corpus --voices en-us,en-gb,en-sc
+voxtype lexicon evaluate /tmp/lexicon-corpus/manifest.jsonl \
+  --corrections /tmp/corrections.tsv
+```
+
+Evaluation reports term recall/WER and exports errors only when carrier words
+align exactly. Review pairs before rebuilding. Manual pairs work too: each
+line is recognized text, a literal tab, and an existing canonical term.
+
+```text
+cube control	kubectl
+engine x	nginx
+```
+
+```bash
+voxtype lexicon build /tmp/lexicon.phon.tsv --query-dict /tmp/querydict.phon.tsv \
+  --corrections /tmp/corrections.tsv
+```
+
+This deduplicates `observed` variants and embeds learned phoneme substitution
+costs in an atomically replaced index. Unknown terms/query words fail the build
+instead of inventing pronunciations. Reuse reviewed pairs on future rebuilds;
+add `--project /path/to/project` for a project index. Old indexes remain valid.
+
 The current implementation performs text-level correction, not acoustic
 boosting or a second decode. The pinned `transcribe.cpp` API lacks those
-capabilities. Local GGUF selection and learned pronunciation/cost updates are
-not implemented. Term descriptions in a fourth source column are currently
+capabilities. Term descriptions in a fourth source column are currently
 ignored. Accuracy thresholds are defaults, not calibrated guarantees; test
 your terms and ordinary-word collisions before enabling live insertion.
 
@@ -1003,11 +1107,40 @@ just review
 
 The popup stays open, including between recordings. Hold Super+V to dictate and
 release to finalize without inserting anything. Scroll and review the text,
-select the destination application, then click **Deliver**. The popup does not
-take keyboard focus. **Discard** clears the draft without output. Both buttons
+then click **Deliver**. On GNOME/XWayland this ends editing but sends nothing:
+select the destination application, then click **Send** in the non-focusing
+confirmation window. Click **Edit** to return to corrections. The editing window
+takes keyboard focus; there is no automatic destination-focus restoration.
+On layer-shell compositors, select the destination and click **Deliver** directly.
+**Discard** clears the draft without output. Both buttons
 are disabled until transcription finishes. Deliver or discard the current draft
 before recording again. After either action the popup remains open, and the
 confidence header remains visible. File-output commands still write automatically.
+
+Corrections are available only in review mode, after transcription finishes.
+Select one to three complete words in the transcript, enter the intended term in
+the **Canonical term** field, and click **Save Correction**. The draft updates
+without being delivered. Repeat for other terms, then click **Deliver**. In the
+GNOME/XWayland confirmation, select the destination and click **Send**.
+Saving requires an enabled lexicon and its source path:
+
+```toml
+[lexicon]
+enabled = true
+terms = "/absolute/path/to/.voxtype/terms.tsv"
+capitalized_confidence_threshold = 0.95
+```
+
+For example, correcting `Vuxtype` to `Voxtype` adds `Vuxtype` to the existing
+row's spoken forms. New terms get a new row. Repeated saves do not duplicate
+forms; conflicting aliases and suppressed terms are rejected. The source is
+replaced atomically and exact aliases reload automatically. Regenerate and
+rebuild the lexicon later to extend fuzzy phonetic matching too. Save failures
+are logged and leave the current transcript pending.
+
+The optional capitalized-word gate searches words below 95% confidence without
+raising the normal 89% gate. Capitalization is a heuristic, not proof that the
+decoder recognized a name, and a lookup does not guarantee a replacement.
 
 To make this the normal behavior of `just`, enable the sample config setting:
 

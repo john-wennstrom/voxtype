@@ -71,9 +71,37 @@ pub struct Cli {
     #[arg(long, value_name = "FILE", help_heading = "Lexicon")]
     pub lexicon_index: Option<std::path::PathBuf>,
 
+    /// Source terms.tsv for reviewed aliases and popup correction learning
+    #[arg(long, value_name = "PATH", help_heading = "Lexicon")]
+    pub lexicon_terms: Option<std::path::PathBuf>,
+
     /// Select a project directory containing .voxtype/terms.tsv
     #[arg(long, value_name = "DIR", help_heading = "Lexicon")]
     pub lexicon_project: Option<std::path::PathBuf>,
+
+    /// Detect project lexicons from the focused window (Hyprland, Sway, X11)
+    #[arg(long, action = clap::ArgAction::Set, help_heading = "Lexicon")]
+    pub lexicon_auto_project: Option<bool>,
+
+    /// Enable or disable resident local GGUF selection (requires the helper)
+    #[arg(long, action = clap::ArgAction::Set, help_heading = "Lexicon")]
+    pub lexicon_local: Option<bool>,
+
+    /// Local instruction-tuned GGUF model for ambiguous lexicon choices
+    #[arg(long, value_name = "FILE", help_heading = "Lexicon")]
+    pub lexicon_local_model: Option<std::path::PathBuf>,
+
+    /// Override the voxtype-lexicon-local helper executable
+    #[arg(long, value_name = "FILE", help_heading = "Lexicon")]
+    pub lexicon_local_helper: Option<std::path::PathBuf>,
+
+    /// Local selection deadline in milliseconds (default: 1000)
+    #[arg(long, help_heading = "Lexicon")]
+    pub lexicon_local_timeout_ms: Option<u64>,
+
+    /// CPU threads for the local GGUF selector (default: 4)
+    #[arg(long, help_heading = "Lexicon")]
+    pub lexicon_local_threads: Option<u16>,
 
     /// Stable-word commit mode: lag (three words), eou (release), or off (uncorrected)
     #[arg(long, value_parser = ["lag", "eou", "off"], help_heading = "Lexicon")]
@@ -82,6 +110,10 @@ pub struct Cli {
     /// Search words with confidence below this threshold (0 to 1)
     #[arg(long, value_name = "SCORE", help_heading = "Lexicon")]
     pub lexicon_confidence_threshold: Option<f32>,
+
+    /// Search capitalized words below this confidence (0 to 1; defaults to the normal gate)
+    #[arg(long, value_name = "SCORE", help_heading = "Lexicon")]
+    pub lexicon_capitalized_confidence_threshold: Option<f32>,
 
     /// Minimum phonetic similarity for a replacement (0 to 1)
     #[arg(long, value_name = "SCORE", help_heading = "Lexicon")]

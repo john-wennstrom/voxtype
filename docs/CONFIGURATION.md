@@ -48,7 +48,10 @@ English-only correction for the Nemotron engine, disabled by default:
 enabled = false
 # index = "/home/me/.cache/voxtype/lexicon/user.vxl"
 # project = "/path/to/project"
+auto_project = false
 confidence_threshold = 0.89
+# capitalized_confidence_threshold = 0.95
+# terms = "/home/me/.config/voxtype/lexicon/terms.tsv"
 similarity_threshold = 0.82
 
 [lexicon.streaming]
@@ -59,10 +62,21 @@ enabled = false
 model = "jev-latest"
 timeout_ms = 300
 confidence_threshold = 0.6
+
+[lexicon.local]
+enabled = false
+# model = "/path/to/instruction-tuned.gguf"
+# helper = "/path/to/voxtype-lexicon-local"
+timeout_ms = 1000
+threads = 4
 ```
 
 `index` defaults to the user lexicon cache. `project` overrides the persisted
-`voxtype lexicon use` selection. Known words below 89% confidence trigger lookup
+`voxtype lexicon use` selection (also set by `voxtype init`). Run `voxtype init`
+in a project to create `.voxtype/words.txt`, provision the offline generator,
+and build and select that project's index. Initialization preserves existing
+configuration; corrections still require `enabled = true` and Nemotron.
+Known words below 89% confidence trigger lookup
 by default, including common short words. Common words still need domain
 context before automatic correction. Missing
 word scores do not count as low confidence. Streaming correction uses a
@@ -72,10 +86,27 @@ similarity threshold of at least 0.88. `lag` holds three complete stable words;
 Live modes activate toggle-hotkey safety. Neither mode revises already-typed
 text. `eou` here means stream finalization, not automatic silence segmentation.
 
+`capitalized_confidence_threshold` is optional and defaults to the normal gate.
+Set it to `0.95` to search capitalized words below 95% confidence. The first
+alphabetic character is checked, including after opening punctuation. Sentence
+starts also qualify; capitalization is not named-entity detection. Similarity,
+ambiguity, and common-word safeguards still apply. Scores at the threshold are
+not low-confidence lookup triggers.
+
+`terms` is an optional source TSV path for explicit spoken aliases and review
+learning. Relative paths resolve against the daemon's working directory; use an
+absolute path for services. Explicit aliases in its second column apply without
+a phonetic guess or confidence gate, with the common-word and project-suppression
+guards retained. Changes reload during transcription. Regenerate pronunciations
+and rebuild the index to also use learned forms for fuzzy phonetic matching.
+
 Confidence values use the 0 to 1 scale: `0.89` is 89%. The popup and terminal
-logs display percentages. Normal terminal logs report confidence evaluations,
-lookups, candidates, and selected replacements. Only selected replacements
-receive the blue underline in the native popup; a lookup alone is not a pick.
+logs display percentages. While recording, normal terminal logs show only the
+latest three buffer words. The complete corrected message is logged once after
+release. Selected replacements are orange in interactive terminal logs; redirected
+logs and `NO_COLOR` output contain no color escapes. Lookup details and candidates
+are available with `-v`. Only selected replacements receive the blue underline
+in the native popup; a lookup alone is not a pick.
 
 Jev requires `TYPESAFE_API_KEY` and explicitly opts in to sending dictated text
 to TypeSafe. Timeout must be 1 to 10000 ms. Confidence and similarity settings
@@ -83,14 +114,41 @@ must be finite values in `[0, 1]`. Requests run only in batch or `eou` mode.
 Project `.voxtype/config` can set `[lexicon.jev] enabled = false`; unreadable
 project privacy configuration disables remote selection.
 
+Local selection uses a resident CPU-only llama.cpp helper built with
+`cargo build --features lexicon-local --bin voxtype-lexicon-local`. Install it
+beside voxtype, on PATH, or set `helper`. The separate process avoids native
+runtime conflicts. `model` must be an existing instruction-tuned GGUF with a
+supported chat template. Local selection runs when Jev is disabled, blocked,
+or fails; a valid Jev decision to keep the original does not trigger fallback.
+The helper sends no text over the network. Timeout is 1 to 10000 ms; threads
+are 1 to 256. Model loading runs in the background; early requests may time
+out. Both selectors run only before batch or `eou` insertion, not `lag`/`off`.
+
+`auto_project` checks Hyprland/Sway focus or an X11 focused-window PID, then
+process/shell-child working directories for the nearest `.voxtype/terms.tsv`.
+Explicit `project` and persisted `lexicon use` selections win. Detection runs
+between utterances; loaded indexes are reused until project/files change.
+Unsupported sessions (including GNOME/KDE Wayland), missing process data, and
+ambiguous multi-project terminals fall back to the user lexicon. Detected
+projects without usable compiled indexes still apply suppressions and remote
+privacy settings to user terms.
+
 Every setting is also available through CLI and environment overrides:
 
 | Config key | CLI | Environment |
 |---|---|---|
 | `lexicon.enabled` | `--lexicon` / `--no-lexicon` | `VOXTYPE_LEXICON_ENABLED` |
 | `lexicon.index` | `--lexicon-index` | `VOXTYPE_LEXICON_INDEX` |
+| `lexicon.terms` | `--lexicon-terms` | `VOXTYPE_LEXICON_TERMS` |
 | `lexicon.project` | `--lexicon-project` | `VOXTYPE_LEXICON_PROJECT` |
+| `lexicon.auto_project` | `--lexicon-auto-project true/false` | `VOXTYPE_LEXICON_AUTO_PROJECT` |
+| `lexicon.local.enabled` | `--lexicon-local true/false` | `VOXTYPE_LEXICON_LOCAL_ENABLED` |
+| `lexicon.local.model` | `--lexicon-local-model` | `VOXTYPE_LEXICON_LOCAL_MODEL` |
+| `lexicon.local.helper` | `--lexicon-local-helper` | `VOXTYPE_LEXICON_LOCAL_HELPER` |
+| `lexicon.local.timeout_ms` | `--lexicon-local-timeout-ms` | `VOXTYPE_LEXICON_LOCAL_TIMEOUT_MS` |
+| `lexicon.local.threads` | `--lexicon-local-threads` | `VOXTYPE_LEXICON_LOCAL_THREADS` |
 | `lexicon.confidence_threshold` | `--lexicon-confidence-threshold` | `VOXTYPE_LEXICON_CONFIDENCE_THRESHOLD` |
+| `lexicon.capitalized_confidence_threshold` | `--lexicon-capitalized-confidence-threshold` | `VOXTYPE_LEXICON_CAPITALIZED_CONFIDENCE_THRESHOLD` |
 | `lexicon.similarity_threshold` | `--lexicon-similarity-threshold` | `VOXTYPE_LEXICON_SIMILARITY_THRESHOLD` |
 | `lexicon.streaming.commit` | `--lexicon-streaming-commit` | `VOXTYPE_LEXICON_STREAMING_COMMIT` |
 | `lexicon.jev.enabled` | `--lexicon-jev` / `--no-lexicon-jev` | `VOXTYPE_LEXICON_JEV_ENABLED` |
@@ -276,8 +334,17 @@ cancellation, or normal shutdown; it is not transcript history.
 
 Set `review_mode = true` to keep the popup open while the daemon runs and defer
 interactive text insertion until you click **Deliver**. **Discard** clears the
-draft without inserting it. The popup accepts mouse input but does not take
-keyboard focus: select the destination application before clicking Deliver.
+draft without inserting it. Final review text supports selecting one to three
+complete words, entering a canonical term, and clicking **Save Correction**.
+This requires `lexicon.enabled = true` and a writable `lexicon.terms` source file.
+The selected phrase is appended as a spoken form to that term's TSV row, or a new
+row is added. Comments, existing forms, and weights are preserved. Saving retains
+the corrected draft without delivery. Corrections are unavailable outside review
+mode. On GNOME/XWayland, editing uses a focusable window. Click **Deliver** to
+finish editing without sending text, select the destination application, then
+click **Send** in the non-focusing confirmation. **Edit** returns to correction
+controls without sending. Focus is not restored automatically. Layer-shell
+releases keyboard focus before its direct Deliver action.
 You can scroll the review text. New recordings are blocked while a draft awaits
 approval, so it cannot be overwritten. After delivery or discard the popup stays
 open with no pending text. Review mode requires `enabled = true` and

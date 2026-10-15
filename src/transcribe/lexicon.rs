@@ -1,3 +1,4 @@
+use super::lexicon_select::Selector;
 use crate::config::LexiconConfig;
 use crate::error::TranscribeError;
 use crate::transcribe::WordConfidence;
@@ -15,7 +16,9 @@ pub(super) struct Corrector {
     recent_hit: Option<Instant>,
     project_stamp: Option<(Option<PathBuf>, Option<SystemTime>, Option<SystemTime>)>,
     selector: Option<super::lexicon_select::JevSelector>,
+    local_selector: Option<super::lexicon_select::LocalGrammarSelector>,
     previous: String,
+    terms_source: Option<String>,
 }
 
 impl Corrector {
@@ -32,17 +35,19 @@ impl Corrector {
     }
 
     pub fn preview_query(&mut self, words: &[Word<'_>]) -> voxtype_lexicon::query::QueryResult {
+        self.refresh();
         let result = self.engine.query(
             words,
             QueryOpts {
                 confidence_threshold: self.settings.confidence_threshold,
+                capitalized_confidence_threshold: self.settings.capitalized_confidence_threshold,
                 similarity_threshold: self.settings.similarity_threshold.max(0.88),
                 recent_context: self
                     .recent_hit
                     .is_some_and(|hit| hit.elapsed().as_secs() < 300),
             },
         );
-        log_query(words, &result, self.settings.confidence_threshold);
+        log_query(words, &result, self.settings.confidence_threshold, true);
         result
     }
 
@@ -58,7 +63,15 @@ impl Corrector {
         let modified = std::fs::metadata(&path)
             .and_then(|metadata| metadata.modified())
             .ok();
-        let selector = super::lexicon_select::JevSelector::new(&settings.jev)?;
+        let local_selector = super::lexicon_select::LocalGrammarSelector::new(&settings.local)?;
+        let selector = match super::lexicon_select::JevSelector::new(&settings.jev) {
+            Ok(selector) => selector,
+            Err(error) if local_selector.is_some() => {
+                tracing::warn!(%error, "Using local GGUF selector instead of Jev");
+                None
+            }
+            Err(error) => return Err(error),
+        };
         let mut corrector = Self {
             engine: QueryEngine::new(index),
             settings: settings.clone(),
@@ -67,7 +80,9 @@ impl Corrector {
             recent_hit: None,
             project_stamp: None,
             selector,
+            local_selector,
             previous: String::new(),
+            terms_source: None,
         };
         corrector.refresh_project()?;
         tracing::info!(index = %corrector.path.display(), confidence_threshold_percent = settings.confidence_threshold * 100.0, "Lexicon enabled (confidence scale: 0..1; popup scale: 0..100)");
@@ -79,6 +94,9 @@ impl Corrector {
             .settings
             .active_project()
             .map_err(TranscribeError::ConfigError)?;
+        let automatic = self.settings.auto_project
+            && self.settings.project.is_none()
+            && !LexiconConfig::active_project_file().is_ok_and(|path| path.is_file());
         let index_path = project
             .as_deref()
             .map(LexiconConfig::project_index_path)
@@ -115,8 +133,15 @@ impl Corrector {
                         .map(|term| term.trim().to_lowercase())
                 })
                 .collect();
-            let index = PhoneticIndex::open(index_path).map_err(|error| TranscribeError::ConfigError(format!("Cannot load project lexicon: {error:#}. Build it with `voxtype lexicon build --project <path>`")))?;
-            (Some(index), suppressions)
+            let index = match PhoneticIndex::open(index_path) {
+                Ok(index) => Some(index),
+                Err(error) if automatic => {
+                    tracing::debug!(%error, "Detected project index unavailable; using user lexicon with project suppressions and privacy settings");
+                    None
+                }
+                Err(error) => return Err(TranscribeError::ConfigError(format!("Cannot load project lexicon: {error:#}. Build it with `voxtype lexicon build --project <path>`"))),
+            };
+            (index, suppressions)
         } else {
             (None, HashSet::new())
         };
@@ -138,7 +163,10 @@ impl Corrector {
                         std::mem::replace(&mut self.engine, QueryEngine::new(index));
                     let previous_stamp = self.project_stamp.take();
                     match self.refresh_project() {
-                        Ok(()) => self.modified = modified,
+                        Ok(()) => {
+                            self.modified = modified;
+                            self.terms_source = None;
+                        }
                         Err(error) => {
                             self.engine = previous_engine;
                             self.project_stamp = previous_stamp;
@@ -153,6 +181,23 @@ impl Corrector {
         }
         if let Err(error) = self.refresh_project() {
             tracing::warn!(%error, "Keeping previous project lexicon after failed reload");
+        }
+        if let Some(path) = &self.settings.terms {
+            match std::fs::read_to_string(path) {
+                Ok(source) if self.terms_source.as_ref() != Some(&source) => {
+                    match voxtype_lexicon::terms::aliases(&source) {
+                        Ok(aliases) => {
+                            self.engine.set_aliases(aliases);
+                            self.terms_source = Some(source);
+                        }
+                        Err(error) => {
+                            tracing::warn!(%error, "Keeping previous reviewed lexicon aliases")
+                        }
+                    }
+                }
+                Err(error) => tracing::warn!(%error, "Cannot read lexicon terms"),
+                _ => {}
+            }
         }
     }
 
@@ -187,16 +232,20 @@ impl Corrector {
             &words,
             QueryOpts {
                 confidence_threshold: self.settings.confidence_threshold,
+                capitalized_confidence_threshold: self.settings.capitalized_confidence_threshold,
                 similarity_threshold: self.settings.similarity_threshold,
                 recent_context: self
                     .recent_hit
                     .is_some_and(|hit| hit.elapsed().as_secs() < 300),
             },
         );
-        let project_allows_remote = match self.settings.active_project() {
-            Ok(None) => true,
-            Err(_) => false,
-            Ok(Some(project)) => match std::fs::read_to_string(project.join(".voxtype/config")) {
+        let project_allows_remote = match self
+            .project_stamp
+            .as_ref()
+            .and_then(|stamp| stamp.0.as_ref())
+        {
+            None => true,
+            Some(project) => match std::fs::read_to_string(project.join(".voxtype/config")) {
                 Ok(contents) => {
                     toml::from_str::<toml::Value>(&contents)
                         .ok()
@@ -212,26 +261,35 @@ impl Corrector {
                 Err(error) => error.kind() == std::io::ErrorKind::NotFound,
             },
         };
+        let request = super::lexicon_select::SelectionRequest {
+            previous: &self.previous,
+            text,
+            spans: &result.ambiguous,
+        };
+        let mut selected = None;
         if project_allows_remote {
             if let Some(selector) = &self.selector {
-                let request = super::lexicon_select::SelectionRequest {
-                    previous: &self.previous,
-                    text,
-                    spans: &result.ambiguous,
-                };
-                if let Some(selected) = selector.select_blocking(
+                selected = selector.select_blocking(
                     &request,
                     Instant::now() + std::time::Duration::from_millis(self.settings.jev.timeout_ms),
-                ) {
-                    result.replacements.extend(selected);
-                    result
-                        .replacements
-                        .sort_by_key(|replacement| replacement.start);
-                    result.text = voxtype_lexicon::query::render(&words, &result.replacements);
-                }
+                );
             }
         }
-        log_query(&words, &result, self.settings.confidence_threshold);
+        if selected.is_none() {
+            if let Some(selector) = &self.local_selector {
+                selected = selector.select_blocking(
+                    &request,
+                    Instant::now()
+                        + std::time::Duration::from_millis(self.settings.local.timeout_ms),
+                );
+            }
+        }
+        if let Some(selected) = selected {
+            result.replacements.extend(selected);
+            result.replacements = voxtype_lexicon::query::select(result.replacements);
+            result.text = voxtype_lexicon::query::render(&words, &result.replacements);
+        }
+        log_query(&words, &result, self.settings.confidence_threshold, false);
         let output = if result.replacements.is_empty() {
             text.to_string()
         } else {
@@ -246,22 +304,60 @@ impl Corrector {
     }
 }
 
-fn log_query(words: &[Word<'_>], result: &voxtype_lexicon::query::QueryResult, threshold: f32) {
-    let scores = words
+pub(crate) fn format_log_words(words: &[WordConfidence], scores: bool, ansi: bool) -> String {
+    words
         .iter()
         .map(|word| {
-            let score = word
-                .confidence
-                .filter(|score| score.is_finite())
-                .map_or_else(
-                    || "unavailable".to_string(),
-                    |score| format!("{:.2}%", score * 100.0),
-                );
-            format!("{}={score}", word.text)
+            let text = if word.lexicon && ansi {
+                format!("\x1b[38;5;208m{}\x1b[0m", word.text)
+            } else {
+                word.text.clone()
+            };
+            if scores {
+                let score = word
+                    .confidence
+                    .filter(|score| score.is_finite())
+                    .map_or_else(
+                        || "unavailable".to_string(),
+                        |score| format!("{:.2}%", score * 100.0),
+                    );
+                format!("{text}={score}")
+            } else {
+                text
+            }
         })
         .collect::<Vec<_>>()
-        .join(" ");
-    tracing::info!(%scores, threshold_percent = threshold * 100.0, "Lexicon confidence evaluation");
+        .join(" ")
+}
+
+pub(crate) fn log_ansi() -> bool {
+    use std::io::IsTerminal;
+    std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none()
+}
+
+fn log_window(words: &[WordConfidence], ansi: bool) -> String {
+    format_log_words(&words[words.len().saturating_sub(3)..], true, ansi)
+}
+
+fn log_query(
+    words: &[Word<'_>],
+    result: &voxtype_lexicon::query::QueryResult,
+    threshold: f32,
+    live: bool,
+) {
+    if live {
+        let source: Vec<_> = words
+            .iter()
+            .map(|word| WordConfidence {
+                text: word.text.to_string(),
+                confidence: word.confidence,
+                lexicon: false,
+            })
+            .collect();
+        let corrected = replacement_words(&source, &result.replacements);
+        let window = log_window(&corrected, log_ansi());
+        tracing::info!(%window, "Lexicon buffer");
+    }
     for &position in &result.lookup_words {
         let word = &words[position];
         let confidence = word
@@ -271,7 +367,7 @@ fn log_query(words: &[Word<'_>], result: &voxtype_lexicon::query::QueryResult, t
                 || "unavailable".to_string(),
                 |score| format!("{:.2}%", score * 100.0),
             );
-        tracing::info!(word = word.text, %confidence, threshold_percent = threshold * 100.0, "Lexicon lookup");
+        tracing::debug!(word = word.text, %confidence, threshold_percent = threshold * 100.0, "Lexicon lookup");
     }
     for replacement in &result.replacements {
         let original = words[replacement.start..replacement.end]
@@ -279,7 +375,7 @@ fn log_query(words: &[Word<'_>], result: &voxtype_lexicon::query::QueryResult, t
             .map(|word| word.text)
             .collect::<Vec<_>>()
             .join(" ");
-        tracing::info!(%original, picked = %replacement.canonical, score_percent = replacement.score * 100.0, "Lexicon selected (blue underline in preview)");
+        tracing::debug!(%original, picked = %replacement.canonical, score_percent = replacement.score * 100.0, "Lexicon selected");
     }
     for span in &result.ambiguous {
         let candidates = span
@@ -288,10 +384,10 @@ fn log_query(words: &[Word<'_>], result: &voxtype_lexicon::query::QueryResult, t
             .map(|choice| choice.canonical.as_str())
             .collect::<Vec<_>>()
             .join(", ");
-        tracing::info!(original = %span.original, %candidates, guarded = span.guarded, "Lexicon candidates retained without automatic replacement");
+        tracing::debug!(original = %span.original, %candidates, guarded = span.guarded, "Lexicon candidates retained without automatic replacement");
     }
     if !result.lookup_words.is_empty() {
-        tracing::info!(
+        tracing::debug!(
             evaluated_words = result.lookup_words.len(),
             selected_spans = result.replacements.len(),
             "Lexicon lookup complete"
@@ -342,6 +438,31 @@ mod tests {
     use super::*;
 
     #[test]
+    fn log_window_limits_context_and_highlights_only_replacements() {
+        let words: Vec<_> = ["old", "context", "run", "kubectl", "now"]
+            .into_iter()
+            .map(|text| WordConfidence {
+                text: text.into(),
+                confidence: Some(0.95),
+                lexicon: text == "kubectl",
+            })
+            .collect();
+        assert_eq!(
+            log_window(&words, false),
+            "run=95.00% kubectl=95.00% now=95.00%"
+        );
+        assert_eq!(
+            log_window(&words, true),
+            "run=95.00% \x1b[38;5;208mkubectl\x1b[0m=95.00% now=95.00%"
+        );
+        assert_eq!(
+            format_log_words(&words, false, true),
+            "old context run \x1b[38;5;208mkubectl\x1b[0m now"
+        );
+        assert_eq!(log_window(&[], true), "");
+    }
+
+    #[test]
     fn preview_evaluates_percent_gate_and_marks_picks_without_committing_context() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("preview.vxl");
@@ -373,7 +494,9 @@ mod tests {
             recent_hit: None,
             project_stamp: None,
             selector: None,
+            local_selector: None,
             previous: String::new(),
+            terms_source: None,
         };
         let subscriber = tracing_subscriber::fmt()
             .with_max_level(tracing::Level::INFO)

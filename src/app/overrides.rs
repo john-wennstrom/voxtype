@@ -41,8 +41,29 @@ pub(crate) fn apply_cli_overrides(config: &mut config::Config, cli: &Cli) -> Opt
     if let Some(ref index) = cli.lexicon_index {
         config.lexicon.index = Some(index.clone());
     }
+    if let Some(ref terms) = cli.lexicon_terms {
+        config.lexicon.terms = Some(terms.clone());
+    }
     if let Some(ref project) = cli.lexicon_project {
         config.lexicon.project = Some(project.clone());
+    }
+    if let Some(enabled) = cli.lexicon_auto_project {
+        config.lexicon.auto_project = enabled;
+    }
+    if let Some(enabled) = cli.lexicon_local {
+        config.lexicon.local.enabled = enabled;
+    }
+    if let Some(ref model) = cli.lexicon_local_model {
+        config.lexicon.local.model = Some(model.clone());
+    }
+    if let Some(ref helper) = cli.lexicon_local_helper {
+        config.lexicon.local.helper = Some(helper.clone());
+    }
+    if let Some(timeout) = cli.lexicon_local_timeout_ms {
+        config.lexicon.local.timeout_ms = timeout;
+    }
+    if let Some(threads) = cli.lexicon_local_threads {
+        config.lexicon.local.threads = threads;
     }
     if let Some(ref mode) = cli.lexicon_streaming_commit {
         config.lexicon.streaming.commit = match mode.as_str() {
@@ -53,6 +74,9 @@ pub(crate) fn apply_cli_overrides(config: &mut config::Config, cli: &Cli) -> Opt
     }
     if let Some(threshold) = cli.lexicon_confidence_threshold {
         config.lexicon.confidence_threshold = threshold;
+    }
+    if let Some(threshold) = cli.lexicon_capitalized_confidence_threshold {
+        config.lexicon.capitalized_confidence_threshold = Some(threshold);
     }
     if let Some(threshold) = cli.lexicon_similarity_threshold {
         config.lexicon.similarity_threshold = threshold;

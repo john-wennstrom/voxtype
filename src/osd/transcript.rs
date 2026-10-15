@@ -93,12 +93,55 @@ impl TranscriptSnapshot {
 pub enum ReviewAction {
     Deliver,
     Discard,
+    Correct,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub struct TranscriptCorrection {
+    pub start: usize,
+    pub end: usize,
+    pub replacement: String,
+}
+
+impl TranscriptCorrection {
+    pub fn apply(&self, text: &str) -> std::io::Result<(String, String)> {
+        let invalid = || {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Select one to three complete words and enter a canonical term",
+            )
+        };
+        if self.start >= self.end
+            || self.replacement.trim().is_empty()
+            || self.replacement.contains(['\t', '\r', '\n', '|'])
+        {
+            return Err(invalid());
+        }
+        let recognized = text.get(self.start..self.end).ok_or_else(invalid)?;
+        if !(1..=3).contains(&recognized.split_whitespace().count())
+            || text[..self.start]
+                .chars()
+                .next_back()
+                .is_some_and(char::is_alphanumeric)
+            || text[self.end..]
+                .chars()
+                .next()
+                .is_some_and(char::is_alphanumeric)
+        {
+            return Err(invalid());
+        }
+        let mut corrected = text.to_string();
+        corrected.replace_range(self.start..self.end, self.replacement.trim());
+        Ok((corrected, recognized.to_string()))
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct ReviewRequest {
     pub revision: u64,
     pub action: ReviewAction,
+    #[serde(default)]
+    pub correction: Option<TranscriptCorrection>,
 }
 
 pub fn request_review_action(
@@ -106,17 +149,44 @@ pub fn request_review_action(
     revision: u64,
     action: ReviewAction,
 ) -> std::io::Result<()> {
+    request_review(
+        path,
+        &ReviewRequest {
+            revision,
+            action,
+            correction: None,
+        },
+    )
+}
+
+pub fn request_review(path: &Path, request: &ReviewRequest) -> std::io::Result<()> {
     let snapshot = TranscriptSnapshot::read(path).ok_or_else(|| {
         std::io::Error::new(
             std::io::ErrorKind::NotFound,
             "Transcript is no longer available",
         )
     })?;
-    if !snapshot.settings.review_mode || !snapshot.pending_delivery || snapshot.revision != revision
+    if !snapshot.settings.review_mode
+        || !snapshot.pending_delivery
+        || snapshot.revision != request.revision
     {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
             "Transcript changed; review the current text",
+        ));
+    }
+    if request.action == ReviewAction::Correct {
+        request
+            .correction
+            .as_ref()
+            .ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::InvalidInput, "Missing correction")
+            })?
+            .apply(&snapshot.text)?;
+    } else if request.correction.is_some() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Unexpected correction",
         ));
     }
     let directory = path.parent().ok_or_else(|| {
@@ -126,7 +196,7 @@ pub fn request_review_action(
         )
     })?;
     let mut temporary = tempfile::NamedTempFile::new_in(directory)?;
-    serde_json::to_writer(&mut temporary, &ReviewRequest { revision, action })?;
+    serde_json::to_writer(&mut temporary, request)?;
     temporary.flush()?;
     temporary
         .persist(path.with_extension("action.json"))
@@ -329,6 +399,17 @@ mod tests {
 
     #[cfg(target_os = "linux")]
     unsafe fn click_review_window(geometry: &str, horizontal: i32) {
+        unsafe { interact_review_window(geometry, horizontal, 240, None, "") };
+    }
+
+    #[cfg(target_os = "linux")]
+    unsafe fn interact_review_window(
+        geometry: &str,
+        horizontal: i32,
+        vertical: i32,
+        drag_end: Option<i32>,
+        text: &str,
+    ) {
         type Display = *mut libc::c_void;
         unsafe fn symbol<Function: Copy>(
             handle: *mut libc::c_void,
@@ -414,7 +495,7 @@ mod tests {
             display,
             -1,
             coordinate("Absolute upper-left X:") + horizontal,
-            coordinate("Absolute upper-left Y:") + 240,
+            coordinate("Absolute upper-left Y:") + vertical,
             0,
         );
         sync(display, 0);
@@ -422,9 +503,36 @@ mod tests {
         button(display, 1, 1, 0);
         sync(display, 0);
         std::thread::sleep(std::time::Duration::from_millis(75));
+        if let Some(end) = drag_end {
+            motion(
+                display,
+                -1,
+                coordinate("Absolute upper-left X:") + end,
+                coordinate("Absolute upper-left Y:") + vertical,
+                0,
+            );
+            sync(display, 0);
+            std::thread::sleep(std::time::Duration::from_millis(75));
+        }
         button(display, 1, 0, 0);
         sync(display, 0);
         std::thread::sleep(std::time::Duration::from_millis(75));
+        let keysym_to_keycode: unsafe extern "C" fn(Display, libc::c_ulong) -> libc::c_uchar =
+            symbol(xlib, c"XKeysymToKeycode");
+        let key: unsafe extern "C" fn(
+            Display,
+            libc::c_uint,
+            libc::c_int,
+            libc::c_ulong,
+        ) -> libc::c_int = symbol(xtest, c"XTestFakeKeyEvent");
+        for character in text.bytes() {
+            let code = keysym_to_keycode(display, character as libc::c_ulong);
+            assert_ne!(code, 0);
+            key(display, code.into(), 1, 0);
+            key(display, code.into(), 0, 0);
+            sync(display, 0);
+            std::thread::sleep(std::time::Duration::from_millis(30));
+        }
         motion(display, -1, original_x, original_y, 0);
         sync(display, 0);
         close(display);
@@ -450,7 +558,6 @@ mod tests {
                 .unwrap()
                 .stdout
         };
-        let before = focus();
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("transcript.json");
         let publisher = TranscriptPublisher::new(
@@ -473,50 +580,54 @@ mod tests {
             })
             .collect();
         publisher.publish_scored(text, true, &words).unwrap();
-        let mut child = ChildGuard(
+        let child = ChildGuard(
             std::process::Command::new("target/nemotron-cuda/debug/voxtype-osd-native")
                 .arg("--transcript-state")
                 .arg(&path)
                 .spawn()
                 .unwrap(),
         );
-        let window = tokio::time::timeout(std::time::Duration::from_secs(15), async {
-            loop {
-                assert!(child.0.try_wait().unwrap().is_none());
-                let tree = std::process::Command::new("xwininfo")
-                    .args(["-root", "-tree"])
-                    .output()
-                    .unwrap();
-                for line in String::from_utf8_lossy(&tree.stdout)
-                    .lines()
-                    .filter(|line| line.contains("\"Voxtype Transcript\""))
-                {
-                    let Some(window) = line.split_whitespace().next() else {
-                        continue;
-                    };
-                    let properties = std::process::Command::new("xprop")
-                        .args(["-id", window, "_NET_WM_PID"])
+        async fn find_window(pid: u32) -> (String, String) {
+            let window = tokio::time::timeout(std::time::Duration::from_secs(15), async {
+                loop {
+                    let tree = std::process::Command::new("xwininfo")
+                        .args(["-root", "-tree"])
                         .output()
                         .unwrap();
-                    if String::from_utf8_lossy(&properties.stdout)
-                        .split('=')
-                        .nth(1)
-                        .and_then(|pid| pid.trim().parse::<u32>().ok())
-                        == Some(child.0.id())
+                    for line in String::from_utf8_lossy(&tree.stdout)
+                        .lines()
+                        .filter(|line| line.contains("\"Voxtype Transcript\""))
                     {
-                        return window.to_string();
+                        let Some(window) = line.split_whitespace().next() else {
+                            continue;
+                        };
+                        let properties = std::process::Command::new("xprop")
+                            .args(["-id", window, "_NET_WM_PID"])
+                            .output()
+                            .unwrap();
+                        if String::from_utf8_lossy(&properties.stdout)
+                            .split('=')
+                            .nth(1)
+                            .and_then(|pid| pid.trim().parse::<u32>().ok())
+                            == Some(pid)
+                        {
+                            return window.to_string();
+                        }
                     }
+                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                 }
-                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-            }
-        })
-        .await
-        .unwrap();
-        let geometry = std::process::Command::new("xwininfo")
-            .args(["-id", &window])
-            .output()
+            })
+            .await
             .unwrap();
-        let geometry = String::from_utf8(geometry.stdout).unwrap();
+            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+            let geometry = std::process::Command::new("xwininfo")
+                .args(["-id", &window])
+                .output()
+                .unwrap();
+            let geometry = String::from_utf8(geometry.stdout).unwrap();
+            (window, geometry)
+        }
+        let (mut window, mut geometry) = find_window(child.0.id()).await;
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         unsafe {
             click_review_window(&geometry, 72);
@@ -543,6 +654,28 @@ mod tests {
             unsafe {
                 click_review_window(&geometry, horizontal);
             }
+            let mut destination_focus = None;
+            if action == ReviewAction::Deliver {
+                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                assert!(
+                    publisher.take_review_request().unwrap().is_none(),
+                    "First Deliver click sent text before destination selection"
+                );
+                let previous = window.clone();
+                (window, geometry) = find_window(child.0.id()).await;
+                assert_ne!(
+                    window, previous,
+                    "Editing window was not replaced by confirmation"
+                );
+                assert!(
+                    geometry.contains("Override Redirect State: yes"),
+                    "Send confirmation must not take application focus"
+                );
+                destination_focus = Some(focus());
+                unsafe {
+                    click_review_window(&geometry, 72);
+                }
+            }
             let request = tokio::time::timeout(std::time::Duration::from_secs(5), async {
                 loop {
                     if let Some(request) = publisher.take_review_request().unwrap() {
@@ -553,10 +686,24 @@ mod tests {
             })
             .await
             .unwrap();
-            assert_eq!(request, ReviewRequest { revision, action });
-            assert_eq!(before, focus(), "review click changed the active window");
+            assert_eq!(
+                request,
+                ReviewRequest {
+                    revision,
+                    action,
+                    correction: None
+                }
+            );
+            if let Some(before) = destination_focus {
+                assert_eq!(
+                    before,
+                    focus(),
+                    "Send confirmation changed the selected destination"
+                );
+            }
             publisher.publish("", false).unwrap();
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            (window, geometry) = find_window(child.0.id()).await;
             assert!(std::process::Command::new("xwininfo")
                 .args(["-id", &window])
                 .output()
@@ -567,6 +714,53 @@ mod tests {
                 .unwrap()
                 .visible_at(u64::MAX));
         }
+        let revision = publisher.stage_for_review(text).unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        unsafe {
+            click_review_window(&geometry, 72);
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        (window, geometry) = find_window(child.0.id()).await;
+        assert!(geometry.contains("Override Redirect State: yes"));
+        unsafe {
+            click_review_window(&geometry, 176);
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let confirmation_window = window;
+        (window, geometry) = find_window(child.0.id()).await;
+        assert_ne!(window, confirmation_window);
+        assert!(geometry.contains("Override Redirect State: no"));
+        assert!(
+            publisher.take_review_request().unwrap().is_none(),
+            "Returning to Edit delivered text"
+        );
+        unsafe {
+            interact_review_window(&geometry, 25, 60, Some(91), "");
+            interact_review_window(&geometry, 100, 200, None, "voxtype");
+            interact_review_window(&geometry, 658, 200, None, "");
+        }
+        let request = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if let Some(request) = publisher.take_review_request().unwrap() {
+                    return request;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+        })
+        .await
+        .expect("Canonical field did not accept keyboard input or save the selection");
+        assert_eq!(
+            request,
+            ReviewRequest {
+                revision,
+                action: ReviewAction::Correct,
+                correction: Some(TranscriptCorrection {
+                    start: 0,
+                    end: 5,
+                    replacement: "voxtype".into()
+                })
+            }
+        );
     }
 
     #[tokio::test]
@@ -924,7 +1118,8 @@ mod tests {
             publisher.take_review_request().unwrap(),
             Some(ReviewRequest {
                 revision,
-                action: ReviewAction::Deliver
+                action: ReviewAction::Deliver,
+                correction: None
             })
         );
         assert!(publisher.take_review_request().unwrap().is_none());
@@ -959,6 +1154,88 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(30)).await;
         let snapshot = TranscriptSnapshot::read(&path).unwrap();
         assert!(snapshot.pending_delivery && snapshot.visible_at(u64::MAX));
+    }
+
+    #[test]
+    fn transcript_corrections_validate_ranges_and_stale_revisions() {
+        let correction = TranscriptCorrection {
+            start: 10,
+            end: 17,
+            replacement: "Voxtype".into(),
+        };
+        assert_eq!(
+            correction.apply("On Linux, Vuxtype can type").unwrap(),
+            ("On Linux, Voxtype can type".into(), "Vuxtype".into())
+        );
+        assert!(TranscriptCorrection {
+            start: 11,
+            ..correction.clone()
+        }
+        .apply("On Linux, Vuxtype can type")
+        .is_err());
+        assert!(TranscriptCorrection {
+            start: 0,
+            end: 1,
+            replacement: "name".into()
+        }
+        .apply("é")
+        .is_err());
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("transcript.json");
+        let publisher = TranscriptPublisher::new(
+            path.clone(),
+            TranscriptPopupConfig {
+                enabled: true,
+                review_mode: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let revision = publisher
+            .stage_for_review("On Linux, Vuxtype can type")
+            .unwrap();
+        let request = ReviewRequest {
+            revision,
+            action: ReviewAction::Correct,
+            correction: Some(correction),
+        };
+        request_review(&path, &request).unwrap();
+        assert_eq!(publisher.take_review_request().unwrap(), Some(request));
+        let request = ReviewRequest {
+            revision,
+            action: ReviewAction::Correct,
+            correction: Some(TranscriptCorrection {
+                start: 0,
+                end: 2,
+                replacement: "In".into(),
+            }),
+        };
+        publisher.stage_for_review("New words").unwrap();
+        assert!(request_review(&path, &request).is_err());
+        let automatic_path = directory.path().join("automatic.json");
+        let automatic = TranscriptPublisher::new(
+            automatic_path.clone(),
+            TranscriptPopupConfig {
+                enabled: true,
+                review_mode: false,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let revision = automatic.stage_for_review("On Linux").unwrap();
+        assert!(request_review(
+            &automatic_path,
+            &ReviewRequest {
+                revision,
+                action: ReviewAction::Correct,
+                correction: Some(TranscriptCorrection {
+                    start: 0,
+                    end: 2,
+                    replacement: "In".into()
+                })
+            }
+        )
+        .is_err());
     }
 
     #[test]

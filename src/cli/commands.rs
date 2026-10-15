@@ -128,6 +128,21 @@ pub enum Commands {
         action: super::LexiconAction,
     },
 
+    /// Initialize and select a project lexicon (edit .voxtype/words.txt, then rerun)
+    Init {
+        /// Project directory (defaults to the current directory)
+        #[arg(default_value = ".", env = "VOXTYPE_INIT_PROJECT")]
+        project: std::path::PathBuf,
+
+        /// Pronunciation backend; espeak/all also require espeak-ng
+        #[arg(long, default_value = "g2p_en", value_parser = ["g2p_en", "espeak", "all", "none"], env = "VOXTYPE_INIT_BACKEND")]
+        backend: String,
+
+        /// Python 3 executable used to provision the shared lexicon environment
+        #[arg(long, default_value = "python3", env = "VOXTYPE_INIT_PYTHON")]
+        python: std::path::PathBuf,
+    },
+
     /// Open the interactive configuration TUI
     Configure {
         /// Render as if installed from a package (for testing source builds).

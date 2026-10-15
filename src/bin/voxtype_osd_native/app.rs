@@ -17,21 +17,22 @@ use raw_window_handle::{
 };
 use smithay_client_toolkit::{
     compositor::{CompositorHandler, CompositorState, Region},
-    delegate_compositor, delegate_layer, delegate_output, delegate_pointer, delegate_registry,
-    delegate_seat,
+    delegate_compositor, delegate_keyboard, delegate_layer, delegate_output, delegate_pointer,
+    delegate_registry, delegate_seat,
     output::{OutputHandler, OutputState},
     reexports::{
         calloop::{self, EventLoop},
         calloop_wayland_source::WaylandSource,
         client::{
             globals::registry_queue_init,
-            protocol::{wl_output, wl_pointer, wl_seat, wl_surface::WlSurface},
+            protocol::{wl_keyboard, wl_output, wl_pointer, wl_seat, wl_surface::WlSurface},
             Connection, Proxy, QueueHandle,
         },
     },
     registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
     seat::{
+        keyboard::{KeyEvent, KeyboardHandler, Keysym, Modifiers, RawModifiers},
         pointer::{PointerEvent, PointerEventKind, PointerHandler},
         Capability, SeatHandler, SeatState,
     },
@@ -47,7 +48,9 @@ use smithay_client_toolkit::{
 use voxtype::audio::levels::AudioFrame;
 use voxtype::osd::config::{OsdConfig, OsdPosition};
 use voxtype::osd::ipc::FrameRing;
-use voxtype::osd::transcript::{now_ms, request_review_action, ReviewAction, TranscriptSnapshot};
+use voxtype::osd::transcript::{
+    now_ms, request_review, ReviewAction, ReviewRequest, TranscriptCorrection, TranscriptSnapshot,
+};
 use voxtype::osd::visual::{
     peak_meter_fraction, project_envelope, EnvelopeColumn, MeterZone, Palette, PeakHold,
 };
@@ -89,6 +92,8 @@ pub struct App {
     seat_state: SeatState,
     pointers: Vec<(wl_seat::WlSeat, wl_pointer::WlPointer)>,
     pointer_events: Vec<egui::Event>,
+    keyboards: Vec<(wl_seat::WlSeat, wl_keyboard::WlKeyboard)>,
+    modifiers: egui::Modifiers,
 
     qh: QueueHandle<App>,
     conn: Connection,
@@ -158,6 +163,8 @@ pub fn run(
         seat_state: SeatState::new(&globals, &qh),
         pointers: Vec::new(),
         pointer_events: Vec::new(),
+        keyboards: Vec::new(),
+        modifiers: Default::default(),
         qh: qh.clone(),
         conn: conn.clone(),
         shared,
@@ -212,11 +219,22 @@ impl App {
             self.transcript_dirty |= current.as_ref() != snapshot.as_ref();
             *current = snapshot;
             let visible = current.is_some();
+            let awaiting_review = current
+                .as_ref()
+                .is_some_and(|value| value.settings.review_mode && value.pending_delivery);
             if let Some(value) = current.as_ref() {
                 self.shared.config.width_px = value.settings.width_px;
                 self.shared.config.height_px = value.settings.height_px;
             }
             drop(current);
+            if awaiting_review && self.transcript_dirty {
+                if let Some(surface) = &self.surface {
+                    surface
+                        .layer
+                        .set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
+                    surface.wl_surface.commit();
+                }
+            }
             if !visible {
                 self.tear_down_surface();
             } else {
@@ -322,6 +340,9 @@ impl App {
                     .map(|snapshot| snapshot.settings.review_mode)
             })
             .unwrap_or(false);
+        if review_mode {
+            layer.set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
+        }
         if !review_mode {
             wl_surface.set_input_region(Some(region.wl_region()));
         }
@@ -465,6 +486,7 @@ impl App {
             .create_view(&wgpu::TextureViewDescriptor::default());
 
         let raw_input = egui::RawInput {
+            modifiers: self.modifiers,
             events: std::mem::take(&mut self.pointer_events),
             screen_rect: Some(egui::Rect::from_min_size(
                 egui::Pos2::ZERO,
@@ -606,12 +628,18 @@ impl App {
         rs.frame_pending = true;
         surface_texture.present();
         self.transcript_dirty = false;
-        if let (Some(action), Some(snapshot), Some(path)) = (
+        if let (Some(request), Some(_snapshot), Some(path)) = (
             review_action,
             transcript.as_ref(),
             self.shared.transcript_path.as_ref(),
         ) {
-            if let Err(error) = request_review_action(path, snapshot.revision, action) {
+            if let Some(surface) = &self.surface {
+                surface
+                    .layer
+                    .set_keyboard_interactivity(KeyboardInteractivity::None);
+                surface.wl_surface.commit();
+            }
+            if let Err(error) = request_review(path, &request) {
                 tracing::warn!("Transcript review action failed: {error}");
             }
         }
@@ -619,12 +647,20 @@ impl App {
     }
 }
 
+#[derive(Clone, Default)]
+struct CorrectionDraft {
+    revision: u64,
+    selected: Option<(usize, usize)>,
+    replacement: String,
+    error: Option<String>,
+}
+
 pub(crate) fn draw_transcript(
     ui: &mut egui::Ui,
     width: u32,
     height: u32,
     snapshot: &TranscriptSnapshot,
-) -> Option<ReviewAction> {
+) -> Option<ReviewRequest> {
     let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width as f32, height as f32));
     let painter = ui.painter().clone();
     painter.rect_filled(
@@ -636,6 +672,12 @@ pub(crate) fn draw_transcript(
     let footer = egui::Rect::from_min_max(egui::pos2(inner.min.x, inner.max.y - 32.0), inner.max);
     if snapshot.settings.review_mode {
         inner.max.y -= 40.0;
+    }
+    let editable = snapshot.settings.review_mode && snapshot.pending_delivery;
+    let correction_rect =
+        egui::Rect::from_min_max(egui::pos2(inner.min.x, inner.max.y - 36.0), inner.max);
+    if editable {
+        inner.max.y -= 44.0;
     }
     let text_color = egui::Color32::from_rgb(24, 24, 24);
     let score_color = egui::Color32::from_rgb(68, 86, 92);
@@ -689,6 +731,16 @@ pub(crate) fn draw_transcript(
     }
     if snapshot.settings.review_mode {
         ui.style_mut().visuals = egui::Visuals::light();
+        let draft_id = egui::Id::new("transcript-correction-draft");
+        let mut draft = ui
+            .data_mut(|data| data.get_temp::<CorrectionDraft>(draft_id))
+            .unwrap_or_default();
+        if draft.revision != snapshot.revision {
+            draft = CorrectionDraft {
+                revision: snapshot.revision,
+                ..Default::default()
+            };
+        }
         ui.scope_builder(egui::UiBuilder::new().max_rect(inner), |ui| {
             ui.set_clip_rect(inner);
             egui::ScrollArea::vertical()
@@ -697,29 +749,144 @@ pub(crate) fn draw_transcript(
                 .auto_shrink([false, false])
                 .stick_to_bottom(snapshot.recording)
                 .show(ui, |ui| {
-                    ui.add(egui::Label::new(job).wrap());
+                    if editable {
+                        let mut text = snapshot.text.as_str();
+                        let output = egui::TextEdit::multiline(&mut text)
+                            .id(egui::Id::new(("review-selection", snapshot.revision)))
+                            .font(egui::FontId::proportional(snapshot.settings.font_size))
+                            .text_color(text_color)
+                            .frame(egui::Frame::NONE)
+                            .desired_width(inner.width())
+                            .show(ui);
+                        if !output.response.has_focus() {
+                            if let Some((start, end)) = draft.selected {
+                                let start = snapshot.text[..start].chars().count();
+                                let end = snapshot.text[..end].chars().count();
+                                for index in start..end {
+                                    let left = output
+                                        .galley
+                                        .pos_from_cursor(egui::text::CCursor::new(index));
+                                    let right = output
+                                        .galley
+                                        .pos_from_cursor(egui::text::CCursor::new(index + 1));
+                                    if (left.top() - right.top()).abs() < 1.0 {
+                                        let rect = egui::Rect::from_min_max(
+                                            left.left_top(),
+                                            right.right_bottom(),
+                                        )
+                                        .translate(output.galley_pos.to_vec2());
+                                        ui.painter().rect_filled(
+                                            rect,
+                                            0.0,
+                                            egui::Color32::from_rgba_unmultiplied(70, 130, 210, 60),
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                        if let Some(range) = output.cursor_range.filter(|range| !range.is_empty()) {
+                            let range = range.as_sorted_char_range();
+                            let byte = |index| {
+                                snapshot
+                                    .text
+                                    .char_indices()
+                                    .nth(index)
+                                    .map_or(snapshot.text.len(), |(position, _)| position)
+                            };
+                            draft.selected = Some((byte(range.start), byte(range.end)));
+                        }
+                    } else {
+                        ui.add(egui::Label::new(job).wrap());
+                    }
                 });
         });
         let mut action = None;
-        ui.scope_builder(egui::UiBuilder::new().max_rect(footer), |ui| {
-            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                ui.add_enabled_ui(snapshot.pending_delivery, |ui| {
-                    let deliver = egui::Button::new(
-                        egui::RichText::new("Deliver").color(egui::Color32::WHITE),
-                    )
-                    .fill(egui::Color32::from_rgb(34, 103, 94));
-                    if ui.add_sized([96.0, 28.0], deliver).clicked() {
-                        action = Some(ReviewAction::Deliver);
-                    }
-                    if ui
-                        .add_sized([96.0, 28.0], egui::Button::new("Discard"))
-                        .clicked()
-                    {
-                        action = Some(ReviewAction::Discard);
-                    }
+        if editable {
+            ui.scope_builder(
+                egui::UiBuilder::new()
+                    .id_salt("review-correction-row")
+                    .max_rect(correction_rect),
+                |ui| {
+                    ui.set_clip_rect(correction_rect);
+                    ui.horizontal(|ui| {
+                        ui.add_sized(
+                            [((correction_rect.width() - 152.0).max(40.0)), 28.0],
+                            egui::TextEdit::singleline(&mut draft.replacement)
+                                .id(egui::Id::new(("review-canonical-term", snapshot.revision)))
+                                .hint_text("Canonical term"),
+                        );
+                        if ui
+                            .add_enabled(
+                                draft.selected.is_some() && !draft.replacement.trim().is_empty(),
+                                egui::Button::new("Save Correction"),
+                            )
+                            .clicked()
+                        {
+                            let (start, end) = draft.selected.expect("enabled with selection");
+                            let correction = TranscriptCorrection {
+                                start,
+                                end,
+                                replacement: draft.replacement.clone(),
+                            };
+                            match correction.apply(&snapshot.text) {
+                                Ok(_) => {
+                                    action = Some(ReviewRequest {
+                                        revision: snapshot.revision,
+                                        action: ReviewAction::Correct,
+                                        correction: Some(correction),
+                                    })
+                                }
+                                Err(error) => draft.error = Some(error.to_string()),
+                            }
+                        }
+                    });
+                },
+            );
+        }
+        ui.scope_builder(
+            egui::UiBuilder::new()
+                .id_salt("review-footer")
+                .max_rect(footer),
+            |ui| {
+                ui.set_clip_rect(footer);
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                    ui.add_enabled_ui(snapshot.pending_delivery, |ui| {
+                        let deliver = egui::Button::new(
+                            egui::RichText::new("Deliver").color(egui::Color32::WHITE),
+                        )
+                        .fill(egui::Color32::from_rgb(34, 103, 94));
+                        if ui.add_sized([96.0, 28.0], deliver).clicked() {
+                            action = Some(ReviewRequest {
+                                revision: snapshot.revision,
+                                action: ReviewAction::Deliver,
+                                correction: None,
+                            });
+                        }
+                        if ui
+                            .add_sized([96.0, 28.0], egui::Button::new("Discard"))
+                            .clicked()
+                        {
+                            action = Some(ReviewRequest {
+                                revision: snapshot.revision,
+                                action: ReviewAction::Discard,
+                                correction: None,
+                            });
+                        }
+                        if let Some(error) = &draft.error {
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(error)
+                                        .color(egui::Color32::from_rgb(160, 40, 40)),
+                                )
+                                .truncate(),
+                            )
+                            .on_hover_text(error);
+                        }
+                    });
                 });
-            });
-        });
+            },
+        );
+        ui.data_mut(|data| data.insert_temp(draft_id, draft));
         return action;
     }
     let galley = painter.layout_job(job);
@@ -917,6 +1084,145 @@ mod transcript_tests {
     }
 
     #[test]
+    fn transcript_review_selection_saves_a_correction_only_in_review_mode() {
+        let snapshot = TranscriptSnapshot {
+            text: "Vuxtype can type".into(),
+            revision: 7,
+            pending_delivery: true,
+            confidence: None,
+            words: Vec::new(),
+            recording: false,
+            expires_at_ms: u64::MAX,
+            settings: TranscriptPopupConfig {
+                enabled: true,
+                review_mode: true,
+                height_px: 380,
+                ..Default::default()
+            },
+        };
+        let context = egui::Context::default();
+        let frame = |events: Vec<egui::Event>, snapshot: &TranscriptSnapshot| {
+            let mut request = None;
+            let output = context.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(760.0, 380.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ui| {
+                    request = draw_transcript(ui, 760, 380, snapshot);
+                },
+            );
+            (output, request)
+        };
+        let (output, _) = frame(vec![], &snapshot);
+        let transcript = output
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::Shape::Text(text) if text.galley.job.text == snapshot.text => {
+                    Some(text.clone())
+                }
+                _ => None,
+            })
+            .unwrap();
+        let start = transcript.pos
+            + transcript
+                .galley
+                .pos_from_cursor(egui::text::CCursor::new(0))
+                .center()
+                .to_vec2();
+        let end = transcript.pos
+            + transcript
+                .galley
+                .pos_from_cursor(egui::text::CCursor::new(7))
+                .center()
+                .to_vec2();
+        let pointer = |position, pressed| egui::Event::PointerButton {
+            pos: position,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Default::default(),
+        };
+        frame(
+            vec![egui::Event::PointerMoved(start), pointer(start, true)],
+            &snapshot,
+        );
+        frame(vec![egui::Event::PointerMoved(end)], &snapshot);
+        let (output, _) = frame(vec![pointer(end, false)], &snapshot);
+        assert_eq!(
+            context
+                .data_mut(|data| data
+                    .get_temp::<CorrectionDraft>(egui::Id::new("transcript-correction-draft")))
+                .unwrap()
+                .selected,
+            Some((0, 7))
+        );
+        let label_center = |output: &egui::FullOutput, label: &str| {
+            output
+                .shapes
+                .iter()
+                .find_map(|shape| match &shape.shape {
+                    egui::Shape::Text(text) if text.galley.job.text == label => {
+                        Some(text.pos + text.galley.size() / 2.0)
+                    }
+                    _ => None,
+                })
+                .unwrap()
+        };
+        let input = label_center(&output, "Canonical term");
+        for _ in 0..3 {
+            frame(vec![], &snapshot);
+        }
+        frame(
+            vec![egui::Event::PointerMoved(input), pointer(input, true)],
+            &snapshot,
+        );
+        frame(vec![pointer(input, false)], &snapshot);
+        let input_id = egui::Id::new(("review-canonical-term", snapshot.revision));
+        assert!(context.memory(|memory| memory.has_focus(input_id)));
+        for _ in 0..3 {
+            frame(vec![], &snapshot);
+            assert!(context.memory(|memory| memory.has_focus(input_id)));
+            assert_eq!(
+                context
+                    .data_mut(|data| data
+                        .get_temp::<CorrectionDraft>(egui::Id::new("transcript-correction-draft")))
+                    .unwrap()
+                    .selected,
+                Some((0, 7))
+            );
+        }
+        let (output, _) = frame(vec![egui::Event::Text("Voxtype".into())], &snapshot);
+        let save = label_center(&output, "Save Correction");
+        frame(
+            vec![egui::Event::PointerMoved(save), pointer(save, true)],
+            &snapshot,
+        );
+        let (_, request) = frame(vec![pointer(save, false)], &snapshot);
+        assert_eq!(
+            request.unwrap(),
+            ReviewRequest {
+                revision: 7,
+                action: ReviewAction::Correct,
+                correction: Some(TranscriptCorrection {
+                    start: 0,
+                    end: 7,
+                    replacement: "Voxtype".into()
+                })
+            }
+        );
+        let mut automatic = snapshot;
+        automatic.settings.review_mode = false;
+        let (output, request) = frame(vec![pointer(save, true), pointer(save, false)], &automatic);
+        assert!(request.is_none());
+        assert!(!output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text == "Save Correction")));
+    }
+
+    #[test]
     fn transcript_popup_review_buttons_deliver_only_ready_text() {
         for pending_delivery in [false, true] {
             for (expected_action, horizontal) in [
@@ -972,7 +1278,10 @@ mod transcript_tests {
                         },
                     );
                 }
-                assert_eq!(action, pending_delivery.then_some(expected_action));
+                assert_eq!(
+                    action.map(|request| request.action),
+                    pending_delivery.then_some(expected_action)
+                );
             }
         }
     }
@@ -1215,8 +1524,16 @@ impl SeatHandler for App {
             && !self.pointers.iter().any(|(current, _)| current == &seat)
         {
             match self.seat_state.get_pointer(qh, &seat) {
-                Ok(pointer) => self.pointers.push((seat, pointer)),
+                Ok(pointer) => self.pointers.push((seat.clone(), pointer)),
                 Err(error) => tracing::warn!("Popup pointer unavailable: {error}"),
+            }
+        }
+        if capability == Capability::Keyboard
+            && !self.keyboards.iter().any(|(current, _)| current == &seat)
+        {
+            match self.seat_state.get_keyboard::<Self, Self>(qh, &seat, None) {
+                Ok(keyboard) => self.keyboards.push((seat, keyboard)),
+                Err(error) => tracing::warn!(%error, "Popup keyboard unavailable"),
             }
         }
     }
@@ -1238,10 +1555,137 @@ impl SeatHandler for App {
                 }
             });
         }
+        if capability == Capability::Keyboard {
+            self.keyboards.retain(|(current, keyboard)| {
+                if current == &seat {
+                    keyboard.release();
+                    false
+                } else {
+                    true
+                }
+            });
+        }
     }
 
     fn remove_seat(&mut self, conn: &Connection, qh: &QueueHandle<Self>, seat: wl_seat::WlSeat) {
-        self.remove_capability(conn, qh, seat, Capability::Pointer);
+        self.remove_capability(conn, qh, seat.clone(), Capability::Pointer);
+        self.remove_capability(conn, qh, seat, Capability::Keyboard);
+    }
+}
+
+impl KeyboardHandler for App {
+    fn enter(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        _: &wl_keyboard::WlKeyboard,
+        _: &WlSurface,
+        _: u32,
+        _: &[u32],
+        _: &[Keysym],
+    ) {
+    }
+
+    fn leave(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        _: &wl_keyboard::WlKeyboard,
+        _: &WlSurface,
+        _: u32,
+    ) {
+        self.modifiers = Default::default();
+        self.pointer_events.push(egui::Event::WindowFocused(false));
+    }
+
+    fn press_key(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        _: &wl_keyboard::WlKeyboard,
+        _: u32,
+        event: KeyEvent,
+    ) {
+        self.queue_key(event, true, false);
+    }
+
+    fn repeat_key(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        _: &wl_keyboard::WlKeyboard,
+        _: u32,
+        event: KeyEvent,
+    ) {
+        self.queue_key(event, true, true);
+    }
+
+    fn release_key(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        _: &wl_keyboard::WlKeyboard,
+        _: u32,
+        event: KeyEvent,
+    ) {
+        self.queue_key(event, false, false);
+    }
+
+    fn update_modifiers(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        _: &wl_keyboard::WlKeyboard,
+        _: u32,
+        modifiers: Modifiers,
+        _: RawModifiers,
+        _: u32,
+    ) {
+        self.modifiers = egui::Modifiers {
+            ctrl: modifiers.ctrl,
+            alt: modifiers.alt,
+            shift: modifiers.shift,
+            mac_cmd: false,
+            command: modifiers.ctrl,
+        };
+    }
+}
+
+impl App {
+    fn queue_key(&mut self, event: KeyEvent, pressed: bool, repeat: bool) {
+        let key = match event.keysym.raw() {
+            0xff51 => Some(egui::Key::ArrowLeft),
+            0xff53 => Some(egui::Key::ArrowRight),
+            0xff52 => Some(egui::Key::ArrowUp),
+            0xff54 => Some(egui::Key::ArrowDown),
+            0xff50 => Some(egui::Key::Home),
+            0xff57 => Some(egui::Key::End),
+            0xff08 => Some(egui::Key::Backspace),
+            0xffff => Some(egui::Key::Delete),
+            0xff0d => Some(egui::Key::Enter),
+            0xff09 => Some(egui::Key::Tab),
+            0xff1b => Some(egui::Key::Escape),
+            0x61 | 0x41 => Some(egui::Key::A),
+            _ => None,
+        };
+        if let Some(key) = key {
+            self.pointer_events.push(egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed,
+                repeat,
+                modifiers: self.modifiers,
+            });
+        }
+        if pressed && !self.modifiers.ctrl && !self.modifiers.alt {
+            if let Some(text) = event
+                .utf8
+                .filter(|text| !text.chars().any(char::is_control))
+            {
+                self.pointer_events.push(egui::Event::Text(text));
+            }
+        }
+        self.transcript_dirty = true;
     }
 }
 
@@ -1378,6 +1822,7 @@ delegate_output!(App);
 delegate_layer!(App);
 delegate_seat!(App);
 delegate_pointer!(App);
+delegate_keyboard!(App);
 
 impl ProvidesRegistryState for App {
     fn registry(&mut self) -> &mut RegistryState {
